@@ -1,10 +1,8 @@
 package com.ai.assistance.operit.ui.features.chat.viewmodel
 
-import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.os.Build
 import android.os.IBinder
@@ -14,11 +12,12 @@ import androidx.compose.material3.Typography
 import androidx.lifecycle.viewModelScope
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
+import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.toSerializable
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.floating.FloatingMode
-import com.ai.assistance.operit.util.stream.SharedStream
+import com.ai.assistance.operit.ui.permissions.ToolCategory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,7 +31,8 @@ class FloatingWindowDelegate(
         private val onMessageReceived: (String, PromptFunctionType) -> Unit,
         private val onAttachmentRequested: (String) -> Unit,
         private val onAttachmentRemoveRequested: (String) -> Unit,
-        private val onCancelMessageRequested: () -> Unit
+        private val onCancelMessageRequested: () -> Unit,
+        private val inputProcessingState: StateFlow<InputProcessingState>
 ) {
     companion object {
         private const val TAG = "FloatingWindowDelegate"
@@ -66,14 +66,15 @@ class FloatingWindowDelegate(
 
     init {
         // 不再需要注册广播接收器
+        setupInputStateCollection()
     }
 
     /** 切换悬浮窗模式 */
     fun toggleFloatingMode(colorScheme: ColorScheme? = null, typography: Typography? = null) {
         val newMode = !_isFloatingMode.value
-        _isFloatingMode.value = newMode
 
         if (newMode) {
+            _isFloatingMode.value = true
             // 启动并绑定服务
             val intent = Intent(context, FloatingChatService::class.java)
             colorScheme?.let {
@@ -89,14 +90,8 @@ class FloatingWindowDelegate(
             }
             context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         } else {
-            // 解绑并停止服务
-            try {
-                context.unbindService(serviceConnection)
-            } catch (e: Exception) {
-                Log.e(TAG, "解绑服务失败", e)
-            }
-            context.stopService(Intent(context, FloatingChatService::class.java))
-            floatingService = null
+            // 统一调用关闭逻辑，确保服务被正确关闭
+            floatingService?.onClose()
         }
     }
 
@@ -148,6 +143,26 @@ class FloatingWindowDelegate(
                 Log.e(TAG, "服务可能已解绑: ${e.message}")
             }
             floatingService = null
+        }
+    }
+
+    private fun setupInputStateCollection() {
+        viewModelScope.launch {
+            inputProcessingState.collect { state ->
+                val isUiToolExecuting = state is InputProcessingState.ExecutingTool &&
+                        state.category == ToolCategory.UI_AUTOMATION
+
+                // Update UI busy state directly on the window state
+                // floatingService?.windowState?.isUiBusy?.value = isUiToolExecuting
+
+                if (isUiToolExecuting) {
+                    Log.d(TAG, "UI tool executing, disabling window interaction.")
+                    floatingService?.setWindowInteraction(false)
+                } else {
+                    Log.d(TAG, "State is ${state::class.simpleName}, enabling window interaction.")
+                    floatingService?.setWindowInteraction(true)
+                }
+            }
         }
     }
 

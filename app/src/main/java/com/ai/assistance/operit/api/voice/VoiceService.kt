@@ -27,13 +27,15 @@ interface VoiceService {
      * @param interrupt 是否中断当前正在播放的语音，默认为true
      * @param rate 语速，范围通常为0.5-2.0，默认为1.0
      * @param pitch 音调，范围通常为0.5-2.0，默认为1.0
+     * @param extraParams 额外的请求参数，用于传递特定于实现的参数
      * @return 操作是否成功
      */
     suspend fun speak(
             text: String,
             interrupt: Boolean = true,
             rate: Float = 1.0f,
-            pitch: Float = 1.0f
+            pitch: Float = 1.0f,
+            extraParams: Map<String, String> = emptyMap()
     ): Boolean
 
     /**

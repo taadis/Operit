@@ -1,5 +1,7 @@
 package com.ai.assistance.operit.core.tools.defaultTool.debugger
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.core.tools.SimplifiedUINode
@@ -10,6 +12,7 @@ import com.ai.assistance.operit.core.tools.defaultTool.accessbility.Accessibilit
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
+import com.ai.assistance.operit.data.repository.UIHierarchyManager
 import java.io.StringReader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -26,6 +29,11 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
     /** 使用Shell命令实现点击操作 */
     override suspend fun tap(tool: AITool): ToolResult {
+        if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
+            Log.d(TAG, "无障碍服务已启用，使用无障碍点击")
+            return super.tap(tool)
+        }
+
         val x = tool.parameters.find { it.name == "x" }?.value?.toIntOrNull()
         val y = tool.parameters.find { it.name == "y" }?.value?.toIntOrNull()
 
@@ -91,6 +99,11 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
     /** 使用Shell命令实现滑动操作 */
     override suspend fun swipe(tool: AITool): ToolResult {
+        if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
+            Log.d(TAG, "无障碍服务已启用，使用无障碍滑动")
+            return super.swipe(tool)
+        }
+
         val startX = tool.parameters.find { it.name == "start_x" }?.value?.toIntOrNull()
         val startY = tool.parameters.find { it.name == "start_y" }?.value?.toIntOrNull()
         val endX = tool.parameters.find { it.name == "end_x" }?.value?.toIntOrNull()
@@ -159,6 +172,11 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
     /** 使用Shell命令点击元素 */
     override suspend fun clickElement(tool: AITool): ToolResult {
+        if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
+            Log.d(TAG, "无障碍服务已启用，使用无障碍点击元素")
+            return super.clickElement(tool)
+        }
+
         val resourceId = tool.parameters.find { it.name == "resourceId" }?.value
         val className = tool.parameters.find { it.name == "className" }?.value
         val index = tool.parameters.find { it.name == "index" }?.value?.toIntOrNull() ?: 0
@@ -235,6 +253,11 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
     /** 使用Shell命令设置输入文本 */
     override suspend fun setInputText(tool: AITool): ToolResult {
+        if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
+            Log.d(TAG, "无障碍服务已启用，使用无障碍设置文本")
+            return super.setInputText(tool)
+        }
+
         val text = tool.parameters.find { it.name == "text" }?.value ?: ""
 
         try {
@@ -246,18 +269,10 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
             // 显示文本输入反馈（在主线程上执行）
             withContext(Dispatchers.Main) { operationOverlay.showTextInput(centerX, centerY, text) }
 
-            // 先清除当前文本字段
-            Log.d(TAG, "Clearing text field with DEL keyevents")
-
-            // 先用CTRL+A全选
-            val selectAllCommand = "input keyevent KEYCODE_CTRL_LEFT KEYCODE_A"
-            AndroidShellExecutor.executeShellCommand(selectAllCommand)
-
-            // 然后按DEL键删除
-            val deleteCommand = "input keyevent KEYCODE_DEL"
-            repeat(5) { // 发送多次删除键确保字段清空
-                AndroidShellExecutor.executeShellCommand(deleteCommand)
-            }
+            // 使用KEYCODE_CLEAR清除字段，这比模拟CTRL+A和DEL更直接
+            Log.d(TAG, "Clearing text field with KEYCODE_CLEAR")
+            val clearCommand = "input keyevent KEYCODE_CLEAR"
+            AndroidShellExecutor.executeShellCommand(clearCommand)
 
             // 短暂延迟
             kotlinx.coroutines.delay(300)
@@ -277,12 +292,22 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
                 )
             }
 
-            // 输入新文本
-            Log.d(TAG, "Setting text to: $text via shell command")
-            val textCommand = "input text ${text.replace(" ", "%s")}"
-            val textResult = AndroidShellExecutor.executeShellCommand(textCommand)
+            // 使用原生复制和ADB粘贴来输入文本，这比'input text'更可靠
+            Log.d(TAG, "Setting text to clipboard and pasting via ADB: $text")
+            withContext(Dispatchers.Main) {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("operit_input", text)
+                clipboard.setPrimaryClip(clip)
+            }
 
-            if (textResult.success) {
+            // 短暂延迟以确保剪贴板操作完成
+            kotlinx.coroutines.delay(100)
+
+            // 执行粘贴命令
+            val pasteCommand = "input keyevent KEYCODE_PASTE"
+            val pasteResult = AndroidShellExecutor.executeShellCommand(pasteCommand)
+
+            if (pasteResult.success) {
                 return ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -290,7 +315,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
                                 UIActionResultData(
                                         actionType = "textInput",
                                         actionDescription =
-                                                "Successfully set input text to: $text via shell command"
+                                                "Successfully set input text to: $text via clipboard paste"
                                 ),
                         error = ""
                 )
@@ -302,7 +327,7 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
-                        error = "Failed to set input text: ${textResult.stderr ?: "Unknown error"}"
+                        error = "Failed to paste text from clipboard: ${pasteResult.stderr ?: "Unknown error"}"
                 )
             }
         } catch (e: Exception) {
@@ -321,6 +346,11 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
     /** 使用Shell命令实现按键操作 */
     override suspend fun pressKey(tool: AITool): ToolResult {
+        if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
+            Log.d(TAG, "无障碍服务已启用，使用无障碍按键")
+            return super.pressKey(tool)
+        }
+
         val keyCode = tool.parameters.find { it.name == "key_code" }?.value
 
         if (keyCode == null) {
@@ -370,6 +400,11 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
     /** 查找UI元素 */
     override suspend fun findElement(tool: AITool): ToolResult {
+        if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
+            Log.d(TAG, "无障碍服务已启用，使用无障碍查找元素")
+            return super.findElement(tool)
+        }
+
         val resourceId = tool.parameters.find { it.name == "resourceId" }?.value
         val className = tool.parameters.find { it.name == "className" }?.value
         val text = tool.parameters.find { it.name == "text" }?.value
@@ -392,6 +427,11 @@ open class DebuggerUITools(context: Context) : AccessibilityUITools(context) {
 
     /** 使用Shell命令获取页面信息 */
     override suspend fun getPageInfo(tool: AITool): ToolResult {
+        if (UIHierarchyManager.isAccessibilityServiceEnabled(context)) {
+            Log.d(TAG, "无障碍服务已启用，使用无障碍获取页面信息")
+            return super.getPageInfo(tool)
+        }
+
         val format = tool.parameters.find { it.name == "format" }?.value ?: "xml"
         val detail = tool.parameters.find { it.name == "detail" }?.value ?: "summary"
 

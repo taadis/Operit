@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
+import kotlin.math.log10
+import kotlin.math.max
 
 /**
  * 基于sherpa-ncnn的本地语音识别实现 sherpa-ncnn是一个轻量级、高性能的语音识别引擎，比Whisper更适合移动端 参考:
@@ -51,9 +54,17 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
 
     private val _isInitialized = MutableStateFlow(false)
     override val isInitialized: StateFlow<Boolean> = _isInitialized.asStateFlow()
+    
+    // 添加音量级别Flow实现
+    private val _volumeLevelFlow = MutableStateFlow(0f)
+    override val volumeLevelFlow: StateFlow<Float> = _volumeLevelFlow.asStateFlow()
 
     override val isRecognizing: Boolean
         get() = currentState == SpeechService.RecognitionState.RECOGNIZING
+
+    // 音量计算相关常量
+    private val VOLUME_SMOOTHING_FACTOR = 0.1f // 平滑因子
+    private var currentVolume = 0f
 
     override suspend fun initialize(): Boolean {
         if (isInitialized.value) return true
@@ -171,6 +182,37 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
                 )
     }
 
+    /**
+     * 计算音频缓冲区的音量级别
+     * 
+     * @param buffer 音频数据缓冲区
+     * @return 音量级别，范围在0.0-1.0之间
+     */
+    private fun calculateVolumeLevel(buffer: ShortArray, size: Int): Float {
+        if (size <= 0) return 0f
+        
+        var sum = 0.0
+        for (i in 0 until size) {
+            sum += abs(buffer[i].toDouble())
+        }
+        
+        // 计算平均振幅
+        val average = sum / size
+        
+        // 转换为分贝值 (相对于最大振幅)
+        val maxAmplitude = 32768.0
+        val db = if (average > 0) 20 * log10(average / maxAmplitude) else -160.0
+        
+        // 将分贝值映射到0-1范围 (典型语音范围约为-60dB到0dB)
+        val normalizedDb = (db + 60.0) / 60.0
+        val volume = normalizedDb.coerceIn(0.0, 1.0).toFloat()
+        
+        // 应用平滑处理
+        currentVolume = currentVolume * (1 - VOLUME_SMOOTHING_FACTOR) + volume * VOLUME_SMOOTHING_FACTOR
+        
+        return currentVolume
+    }
+
     override suspend fun startRecognition(
             languageCode: String,
             continuousMode: Boolean,
@@ -191,7 +233,7 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
 
         audioRecord =
                 AudioRecord(
-                        MediaRecorder.AudioSource.MIC,
+                        MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                         sampleRateInHz,
                         channelConfig,
                         audioFormat,
@@ -199,6 +241,9 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
                 )
         audioRecord?.startRecording()
         _recognitionState.value = SpeechService.RecognitionState.RECOGNIZING
+        // 重置音量
+        currentVolume = 0f
+        _volumeLevelFlow.value = 0f
         Log.d(TAG, "Started recording")
 
         recordingJob =
@@ -211,6 +256,10 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
                             _recognitionState.value == SpeechService.RecognitionState.RECOGNIZING) {
                         val ret = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
                         if (ret > 0) {
+                            // 计算并更新音量级别
+                            val volumeLevel = calculateVolumeLevel(audioBuffer, ret)
+                            _volumeLevelFlow.value = volumeLevel
+                            
                             val samples = FloatArray(ret) { i -> audioBuffer[i] / 32768.0f }
                             recognizer?.let {
                                 it.acceptSamples(samples)
@@ -244,6 +293,7 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
 
                     withContext(Dispatchers.Main) {
                         _recognitionState.value = SpeechService.RecognitionState.IDLE
+                        _volumeLevelFlow.value = 0f // 重置音量
                     }
                     Log.d(TAG, "Stopped recording.")
                 }
@@ -268,6 +318,7 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
             audioRecord?.release()
             audioRecord = null
             _recognitionState.value = SpeechService.RecognitionState.IDLE
+            _volumeLevelFlow.value = 0f // 重置音量
             return true
         }
         return false
@@ -281,6 +332,7 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
         audioRecord?.release()
         audioRecord = null
         _recognitionState.value = SpeechService.RecognitionState.IDLE
+        _volumeLevelFlow.value = 0f // 重置音量
     }
 
     override fun shutdown() {
@@ -292,6 +344,7 @@ class SherpaSpeechProvider(private val context: Context) : SpeechService {
             }
             _isInitialized.value = false
             _recognitionState.value = SpeechService.RecognitionState.UNINITIALIZED
+            _volumeLevelFlow.value = 0f // 重置音量
         }
     }
 

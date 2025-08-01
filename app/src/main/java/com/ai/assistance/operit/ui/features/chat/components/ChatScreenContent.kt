@@ -31,11 +31,27 @@ import androidx.core.content.FileProvider
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.PlanItem
-import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.InputChip
+import androidx.compose.ui.window.Dialog
+import androidx.compose.material.icons.filled.Delete
+import com.ai.assistance.operit.ui.features.chat.components.MessageEditor
 
 @Composable
 fun ChatScreenContent(
@@ -45,7 +61,6 @@ fun ChatScreenContent(
         chatHistory: List<ChatMessage>,
         planItems: List<PlanItem>,
         enableAiPlanning: Boolean,
-        toolProgress: ToolExecutionProgress,
         isLoading: Boolean,
         userMessageColor: Color,
         aiMessageColor: Color,
@@ -56,7 +71,6 @@ fun ChatScreenContent(
         thinkingBackgroundColor: Color,
         thinkingTextColor: Color,
         hasBackgroundImage: Boolean,
-        isEditMode: MutableState<Boolean>,
         editingMessageIndex: MutableState<Int?>,
         editingMessageContent: MutableState<String>,
         chatScreenGestureConsumed: Boolean,
@@ -92,6 +106,15 @@ fun ChatScreenContent(
     var exportFilePath by remember { mutableStateOf<String?>(null) }
     var exportErrorMessage by remember { mutableStateOf<String?>(null) }
     var webContentDir by remember { mutableStateOf<File?>(null) }
+    var editingMessageType by remember { mutableStateOf<String?>(null) }
+
+    val onSelectMessageToEditCallback = remember(editingMessageIndex, editingMessageContent, editingMessageType) {
+        { index: Int, message: ChatMessage, senderType: String ->
+            editingMessageIndex.value = index
+            editingMessageContent.value = message.content
+            editingMessageType = senderType
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
         // 主聊天区域（包括顶部工具栏），确保它一直可见
@@ -154,7 +177,6 @@ fun ChatScreenContent(
                         showChatHistorySelector = showChatHistorySelector,
                         chatHistories = chatHistories,
                         currentChatId = currentChatId,
-                        isEditMode = isEditMode
                 )
 
                 // 聊天对话区域
@@ -165,7 +187,6 @@ fun ChatScreenContent(
                             scrollState = scrollState,
                             planItems = planItems,
                             enablePlanning = enableAiPlanning,
-                            toolProgress = toolProgress,
                             isLoading = isLoading,
                             userMessageColor = userMessageColor,
                             aiMessageColor = aiMessageColor,
@@ -177,50 +198,50 @@ fun ChatScreenContent(
                             thinkingTextColor = thinkingTextColor,
                             hasBackgroundImage = hasBackgroundImage,
                             modifier = Modifier.fillMaxSize(),
-                            isEditMode = isEditMode.value,
-                            onSelectMessageToEdit = { index, message ->
-                                editingMessageIndex.value = index
-                                editingMessageContent.value = message.content
-                            }
+                            onSelectMessageToEdit = onSelectMessageToEditCallback,
+                            onDeleteMessage = { index -> actualViewModel.deleteMessage(index) },
+                            onDeleteMessagesFrom = { index -> actualViewModel.deleteMessagesFrom(index) }
                     )
 
                     // 编辑模式下的操作面板
-                    if (isEditMode.value && editingMessageIndex.value != null) {
-                        MessageEditPanel(
-                                editingMessageContent = editingMessageContent,
-                                onCancel = {
+                    if (editingMessageIndex.value != null) {
+                        MessageEditor(
+                            editingMessageContent = editingMessageContent,
+                            onCancel = {
+                                editingMessageIndex.value = null
+                                editingMessageContent.value = ""
+                                editingMessageType = null
+                            },
+                            onSave = {
+                                val index = editingMessageIndex.value
+                                if (index != null && index < chatHistory.size) {
+                                    val editedMessage =
+                                        chatHistory[index].copy(
+                                            content = editingMessageContent.value
+                                        )
+                                    actualViewModel.updateMessage(index, editedMessage)
+
+                                    // 重置编辑状态
                                     editingMessageIndex.value = null
                                     editingMessageContent.value = ""
-                                },
-                                onSave = {
-                                    val index = editingMessageIndex.value
-                                    if (index != null && index < chatHistory.size) {
-                                        val editedMessage =
-                                                chatHistory[index].copy(
-                                                        content = editingMessageContent.value
-                                                )
-                                        actualViewModel.updateMessage(index, editedMessage)
-
-                                        // 重置编辑状态
-                                        editingMessageIndex.value = null
-                                        editingMessageContent.value = ""
-                                        isEditMode.value = false
-                                    }
-                                },
-                                onResend = {
-                                    val index = editingMessageIndex.value
-                                    if (index != null && index < chatHistory.size) {
-                                        actualViewModel.rewindAndResendMessage(
-                                                index,
-                                                editingMessageContent.value
-                                        )
-
-                                        // 重置编辑状态
-                                        editingMessageIndex.value = null
-                                        editingMessageContent.value = ""
-                                        isEditMode.value = false
-                                    }
+                                    editingMessageType = null
                                 }
+                            },
+                            onResend = {
+                                val index = editingMessageIndex.value
+                                if (index != null && index < chatHistory.size) {
+                                    actualViewModel.rewindAndResendMessage(
+                                        index,
+                                        editingMessageContent.value
+                                    )
+
+                                    // 重置编辑状态
+                                    editingMessageIndex.value = null
+                                    editingMessageContent.value = ""
+                                    editingMessageType = null
+                                }
+                            },
+                            showResendButton = editingMessageType == "user"
                         )
                     }
 
@@ -405,7 +426,7 @@ fun ChatScreenContent(
 fun ScrollToBottomButton(onClick: () -> Unit) {
     SmallFloatingActionButton(
             onClick = onClick,
-            modifier = Modifier.padding(end = 16.dp),
+            modifier = Modifier.padding(end = 34.dp,bottom = 10.dp),
             containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f),
             contentColor = MaterialTheme.colorScheme.onSecondary
     ) {
@@ -416,6 +437,7 @@ fun ScrollToBottomButton(onClick: () -> Unit) {
         )
     }
 }
+
 
 @Composable
 fun ChatHistorySelectorPanel(

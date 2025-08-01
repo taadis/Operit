@@ -122,12 +122,12 @@ object ToolGetter {
     }
 
     /**
-     * 获取问题库工具执行器
+     * 获取内存查询工具执行器
      * @param context 应用上下文
-     * @return 问题库工具执行器实现（只有标准版本）
+     * @return 内存查询工具执行器实现（只有标准版本）
      */
-    fun getProblemLibraryToolExecutor(context: Context): StandardProblemLibraryToolExecutor {
-        return StandardProblemLibraryToolExecutor(context)
+    fun getMemoryQueryToolExecutor(context: Context): MemoryQueryToolExecutor {
+        return MemoryQueryToolExecutor(context)
     }
 
     /**

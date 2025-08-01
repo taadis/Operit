@@ -71,9 +71,6 @@ fun FunctionalPromptConfigScreen(
                 isLoading = false
         }
 
-        // 初始化
-        LaunchedEffect(Unit) { functionalPromptManager.initializeIfNeeded() }
-
         Scaffold() { paddingValues ->
                 if (isLoading) {
                         Box(

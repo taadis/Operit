@@ -80,6 +80,12 @@ import com.ai.assistance.operit.ui.features.permission.viewmodel.PermissionGuide
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+private const val INTRO_PAGES_COUNT = 3
+private const val WELCOME_PAGE_INDEX = INTRO_PAGES_COUNT
+private const val BASIC_PERMISSIONS_PAGE_INDEX = INTRO_PAGES_COUNT + 1
+private const val PERMISSION_LEVEL_PAGE_INDEX = INTRO_PAGES_COUNT + 2
+private const val TOTAL_PAGES_COUNT = INTRO_PAGES_COUNT + 3
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PermissionGuideScreen(
@@ -91,7 +97,7 @@ fun PermissionGuideScreen(
 
     // 状态
     val uiState by viewModel.uiState.collectAsState()
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    val pagerState = rememberPagerState(pageCount = { TOTAL_PAGES_COUNT })
 
     // 警告对话框状态
     var showPermissionWarning by remember { mutableStateOf(false) }
@@ -131,9 +137,12 @@ fun PermissionGuideScreen(
     // 页面切换效果
     LaunchedEffect(pagerState.currentPage) {
         when (pagerState.currentPage) {
-            0 -> viewModel.setCurrentStep(PermissionGuideViewModel.Step.WELCOME)
-            1 -> viewModel.setCurrentStep(PermissionGuideViewModel.Step.BASIC_PERMISSIONS)
-            2 -> viewModel.setCurrentStep(PermissionGuideViewModel.Step.PERMISSION_LEVEL)
+            in 0..WELCOME_PAGE_INDEX ->
+                viewModel.setCurrentStep(PermissionGuideViewModel.Step.WELCOME)
+            BASIC_PERMISSIONS_PAGE_INDEX ->
+                viewModel.setCurrentStep(PermissionGuideViewModel.Step.BASIC_PERMISSIONS)
+            PERMISSION_LEVEL_PAGE_INDEX ->
+                viewModel.setCurrentStep(PermissionGuideViewModel.Step.PERMISSION_LEVEL)
         }
     }
 
@@ -172,7 +181,9 @@ fun PermissionGuideScreen(
                     Button(
                             onClick = {
                                 showPermissionWarning = false
-                                scope.launch { pagerState.animateScrollToPage(2) }
+                                scope.launch {
+                                    pagerState.animateScrollToPage(PERMISSION_LEVEL_PAGE_INDEX)
+                                }
                             }
                     ) { Text(stringResource(R.string.permission_guide_warning_continue)) }
                 },
@@ -210,8 +221,29 @@ fun PermissionGuideScreen(
                 userScrollEnabled = false
         ) { page ->
             when (page) {
-                0 -> WelcomePage()
+                0 ->
+                        IntroductionPage(
+                                title = stringResource(R.string.permission_guide_intro_1_title),
+                                description =
+                                        stringResource(R.string.permission_guide_intro_1_desc),
+                                pageIndex = 0
+                        )
                 1 ->
+                        IntroductionPage(
+                                title = stringResource(R.string.permission_guide_intro_2_title),
+                                description =
+                                        stringResource(R.string.permission_guide_intro_2_desc),
+                                pageIndex = 1
+                        )
+                2 ->
+                        IntroductionPage(
+                                title = stringResource(R.string.permission_guide_intro_3_title),
+                                description =
+                                        stringResource(R.string.permission_guide_intro_3_desc),
+                                pageIndex = 2
+                        )
+                WELCOME_PAGE_INDEX -> WelcomePage()
+                BASIC_PERMISSIONS_PAGE_INDEX ->
                         BasicPermissionsPage(
                                 hasStoragePermission = uiState.hasStoragePermission,
                                 hasOverlayPermission = uiState.hasOverlayPermission,
@@ -341,7 +373,7 @@ fun PermissionGuideScreen(
                                 },
                                 onRefresh = { viewModel.checkPermissions(context) }
                         )
-                2 ->
+                PERMISSION_LEVEL_PAGE_INDEX ->
                         PermissionLevelPage(
                                 selectedLevel = uiState.selectedPermissionLevel,
                                 onLevelSelected = { level ->
@@ -385,9 +417,17 @@ fun PermissionGuideScreen(
             Text(
                     text =
                             when (pagerState.currentPage) {
-                                0 -> stringResource(R.string.permission_guide_welcome)
-                                1 -> stringResource(R.string.permission_guide_basic_permissions)
-                                2 -> stringResource(R.string.permission_guide_permission_level)
+                                in 0 until INTRO_PAGES_COUNT ->
+                                        stringResource(
+                                                R.string.permission_guide_intro_page_indicator,
+                                                pagerState.currentPage + 1,
+                                                INTRO_PAGES_COUNT
+                                        )
+                                WELCOME_PAGE_INDEX -> stringResource(R.string.permission_guide_welcome)
+                                BASIC_PERMISSIONS_PAGE_INDEX ->
+                                        stringResource(R.string.permission_guide_basic_permissions)
+                                PERMISSION_LEVEL_PAGE_INDEX ->
+                                        stringResource(R.string.permission_guide_permission_level)
                                 else -> ""
                             },
                     style = MaterialTheme.typography.bodyMedium,
@@ -403,12 +443,12 @@ fun PermissionGuideScreen(
                             scope.launch {
                                 when {
                                     // 最后一页且已选择权限级别，完成设置
-                                    pagerState.currentPage == 2 &&
+                                    pagerState.currentPage == PERMISSION_LEVEL_PAGE_INDEX &&
                                             uiState.selectedPermissionLevel != null -> {
                                         viewModel.savePermissionLevel()
                                     }
                                     // 在基础权限页但未获得所有权限时，显示警告对话框
-                                    pagerState.currentPage == 1 &&
+                                    pagerState.currentPage == BASIC_PERMISSIONS_PAGE_INDEX &&
                                             !uiState.allBasicPermissionsGranted -> {
                                         showPermissionWarning = true
                                     }
@@ -421,27 +461,31 @@ fun PermissionGuideScreen(
                         },
                         enabled =
                                 when (pagerState.currentPage) {
-                                    0 -> true // 欢迎页总是可以前进
-                                    1 -> true // 基础权限页现在始终可以前进，但会有警告弹窗
-                                    2 -> uiState.selectedPermissionLevel != null // 权限级别页需要已选择级别
+                                    in 0..WELCOME_PAGE_INDEX -> true // 介绍页和欢迎页总是可以前进
+                                    BASIC_PERMISSIONS_PAGE_INDEX ->
+                                            true // 基础权限页现在始终可以前进，但会有警告弹窗
+                                    PERMISSION_LEVEL_PAGE_INDEX ->
+                                            uiState.selectedPermissionLevel != null // 权限级别页需要已选择级别
                                     else -> false
                                 }
                 ) {
                     Icon(
                             imageVector =
-                                    if (pagerState.currentPage == 2) Icons.Default.Check
+                                    if (pagerState.currentPage == PERMISSION_LEVEL_PAGE_INDEX)
+                                            Icons.Default.Check
                                     else Icons.Default.ArrowForward,
                             contentDescription =
-                                    if (pagerState.currentPage == 2)
+                                    if (pagerState.currentPage == PERMISSION_LEVEL_PAGE_INDEX)
                                             stringResource(R.string.permission_guide_complete)
                                     else stringResource(R.string.permission_guide_next),
                             tint =
                                     when {
-                                        pagerState.currentPage == 0 ->
+                                        pagerState.currentPage < BASIC_PERMISSIONS_PAGE_INDEX ->
                                                 MaterialTheme.colorScheme.primary
-                                        pagerState.currentPage == 1 ->
+                                        pagerState.currentPage == BASIC_PERMISSIONS_PAGE_INDEX ->
                                                 MaterialTheme.colorScheme.primary // 基础权限页总是显示可点击状态
-                                        pagerState.currentPage == 2 &&
+                                        pagerState.currentPage ==
+                                                PERMISSION_LEVEL_PAGE_INDEX &&
                                                 uiState.selectedPermissionLevel != null ->
                                                 MaterialTheme.colorScheme.primary
                                         else ->
@@ -453,6 +497,52 @@ fun PermissionGuideScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun IntroductionPage(title: String, description: String, pageIndex: Int) {
+    Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+                modifier =
+                        Modifier.size(80.dp)
+                                .background(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                        CircleShape
+                                )
+                                .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                contentAlignment = Alignment.Center
+        ) {
+            Text(
+                    text = "#${pageIndex + 1}",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text(
+                text = title,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+                text = description,
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -764,6 +854,15 @@ private fun PermissionLevelPage(
                     description = stringResource(R.string.permission_guide_standard_desc),
                     isSelected = selectedLevel == AndroidPermissionLevel.STANDARD,
                     onClick = { onLevelSelected(AndroidPermissionLevel.STANDARD) }
+            )
+
+            // 无障碍权限
+            PermissionLevelItem(
+                    level = AndroidPermissionLevel.ACCESSIBILITY,
+                    title = stringResource(R.string.permission_guide_accessibility_title),
+                    description = stringResource(R.string.permission_guide_accessibility_desc),
+                    isSelected = selectedLevel == AndroidPermissionLevel.ACCESSIBILITY,
+                    onClick = { onLevelSelected(AndroidPermissionLevel.ACCESSIBILITY) }
             )
 
             // 调试权限

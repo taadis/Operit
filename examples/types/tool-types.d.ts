@@ -11,7 +11,8 @@ import {
     SleepResultData, SystemSettingData, AppOperationData, AppListData,
     DeviceInfoResultData, NotificationData, LocationData,
     UIPageResultData, UIActionResultData, CombinedOperationResultData,
-    CalculationResultData, FFmpegResultData, ADBResultData, IntentResultData, TerminalCommandResultData
+    CalculationResultData, FFmpegResultData, ADBResultData, IntentResultData, TerminalCommandResultData,
+    FilePartContentData, FileApplyResultData, UiAutomationTaskResultData
 } from './results';
 
 // ============================================================================
@@ -21,10 +22,10 @@ import {
 /**
  * File tool names
  */
-export type FileToolName = 'list_files' | 'read_file' | 'write_file' | 'delete_file' | 'file_exists' |
+export type FileToolName = 'list_files' | 'read_file' | 'read_file_part' | 'read_file_full' | 'write_file' | 'delete_file' | 'file_exists' |
     'move_file' | 'copy_file' | 'make_directory' | 'find_files' | 'file_info' |
     'zip_files' | 'unzip_files' | 'open_file' | 'share_file' | 'download_file' |
-    'convert_file' | 'get_supported_conversions';
+    'convert_file' | 'get_supported_conversions' | 'apply_file';
 
 /**
  * Network tool names
@@ -43,7 +44,7 @@ export type SystemToolName = 'sleep' | 'get_system_setting' | 'modify_system_set
  * UI tool names
  */
 export type UiToolName = 'get_page_info' | 'click_element' | 'tap' | 'set_input_text' | 'press_key' |
-    'swipe' | 'combined_operation' | 'find_element';
+    'swipe' | 'combined_operation' | 'find_element' | 'automate_ui_task';
 
 /**
  * Calculator tool names
@@ -58,7 +59,7 @@ export type ConnectionToolName = 'establish_connection';
 /**
  * Package tool names
  */
-export type PackageToolName = 'use_package' | 'query_problem_library';
+export type PackageToolName = 'use_package' | 'query_knowledge_library';
 
 /**
  * FFmpeg tool names
@@ -85,6 +86,8 @@ export interface ToolResultMap {
     // File operations
     'list_files': DirectoryListingData;
     'read_file': FileContentData;
+    'read_file_part': FilePartContentData;
+    'read_file_full': FileContentData;
     'write_file': FileOperationData;
     'delete_file': FileOperationData;
     'file_exists': FileExistsData;
@@ -100,6 +103,7 @@ export interface ToolResultMap {
     'download_file': FileOperationData;
     'convert_file': FileConversionResultData;
     'get_supported_conversions': FileFormatConversionsResultData;
+    'apply_file': FileApplyResultData;
 
     // Network operations
     'http_request': HttpResponseData;
@@ -129,13 +133,14 @@ export interface ToolResultMap {
     'swipe': UIActionResultData;
     'combined_operation': CombinedOperationResultData;
     'find_element': UIPageResultData;
+    'automate_ui_task': UiAutomationTaskResultData;
 
     // Calculator operations
     'calculate': CalculationResultData;
 
     // Package operations
     'use_package': string;
-    'query_problem_library': string;
+    'query_knowledge_library': string;
 
     // FFmpeg operations
     'ffmpeg_execute': FFmpegResultData;

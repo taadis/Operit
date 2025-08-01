@@ -17,6 +17,16 @@ import com.ai.assistance.operit.data.model.ToolResult
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.content.pm.PackageManager
+import android.content.pm.ApplicationInfo
+import android.app.ActivityManager
+import android.app.NotificationManager
+import android.content.ComponentName
+import android.os.Build
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import java.io.File
 
 /** 提供系统级操作的工具类 包括系统设置修改、应用安装和卸载等 这些操作需要用户明确授权 */
 open class StandardSystemOperationTools(private val context: Context) {
@@ -26,518 +36,380 @@ open class StandardSystemOperationTools(private val context: Context) {
     }
 
     /** 修改系统设置 支持修改各种系统设置，如音量、亮度等 */
-    suspend fun modifySystemSetting(tool: AITool): ToolResult {
+    open suspend fun modifySystemSetting(tool: AITool): ToolResult {
         val setting = tool.parameters.find { it.name == "setting" }?.value ?: ""
         val value = tool.parameters.find { it.name == "value" }?.value ?: ""
         val namespace = tool.parameters.find { it.name == "namespace" }?.value ?: "system"
 
         if (setting.isBlank() || value.isBlank()) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "必须提供setting和value参数"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "必须提供setting和value参数"
             )
         }
 
-        // 判断命名空间是否合法
         val validNamespaces = listOf("system", "secure", "global")
         if (!validNamespaces.contains(namespace)) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "命名空间必须是以下之一: ${validNamespaces.joinToString(", ")}"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "命名空间必须是以下之一: ${validNamespaces.joinToString(", ")}"
+            )
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "没有修改系统设置的权限. 请授予 WRITE_SETTINGS 权限."
             )
         }
 
         return try {
-            val command = "settings put $namespace $setting $value"
-            val result = AndroidShellExecutor.executeShellCommand(command)
-
-            if (result.success) {
-                val resultData =
-                        SystemSettingData(namespace = namespace, setting = setting, value = value)
-
-                return ToolResult(
-                        toolName = tool.name,
-                        success = true,
-                        result = resultData,
-                        error = ""
-                )
-            } else {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "设置失败: ${result.stderr}"
-                )
+            when (namespace) {
+                "system" -> Settings.System.putString(context.contentResolver, setting, value)
+                "secure" -> Settings.Secure.putString(context.contentResolver, setting, value)
+                "global" -> Settings.Global.putString(context.contentResolver, setting, value)
             }
+            val resultData = SystemSettingData(namespace = namespace, setting = setting, value = value)
+            ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "修改系统设置时出错", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "修改系统设置时出现安全异常: ${e.message}. 这可能需要更高的权限."
+            )
         } catch (e: Exception) {
             Log.e(TAG, "修改系统设置时出错", e)
-            return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "修改系统设置时出错: ${e.message}"
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "修改系统设置时出错: ${e.message}"
             )
         }
     }
 
     /** 获取系统设置的当前值 */
-    suspend fun getSystemSetting(tool: AITool): ToolResult {
+    open suspend fun getSystemSetting(tool: AITool): ToolResult {
         val setting = tool.parameters.find { it.name == "setting" }?.value ?: ""
         val namespace = tool.parameters.find { it.name == "namespace" }?.value ?: "system"
 
         if (setting.isBlank()) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "必须提供setting参数"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "必须提供setting参数"
             )
         }
 
-        // 判断命名空间是否合法
         val validNamespaces = listOf("system", "secure", "global")
         if (!validNamespaces.contains(namespace)) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "命名空间必须是以下之一: ${validNamespaces.joinToString(", ")}"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "命名空间必须是以下之一: ${validNamespaces.joinToString(", ")}"
             )
         }
 
         return try {
-            val command = "settings get $namespace $setting"
-            val result = AndroidShellExecutor.executeShellCommand(command)
-
-            if (result.success) {
-                val resultData =
-                        SystemSettingData(
-                                namespace = namespace,
-                                setting = setting,
-                                value = result.stdout.trim()
-                        )
-
-                return ToolResult(
-                        toolName = tool.name,
-                        success = true,
-                        result = resultData,
-                        error = ""
-                )
-            } else {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "获取设置失败: ${result.stderr}"
-                )
+            val value = when (namespace) {
+                "system" -> Settings.System.getString(context.contentResolver, setting)
+                "secure" -> Settings.Secure.getString(context.contentResolver, setting)
+                "global" -> Settings.Global.getString(context.contentResolver, setting)
+                else -> null
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "获取系统设置时出错", e)
-            return ToolResult(
+
+            if (value != null) {
+                val resultData = SystemSettingData(namespace = namespace, setting = setting, value = value)
+                ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
+            } else {
+                ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "获取系统设置时出错: ${e.message}"
+                    error = "获取设置失败: setting '$setting' 在 namespace '$namespace' 中未找到."
+                )
+            }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "获取系统设置时出错", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "获取系统设置时出现安全异常: ${e.message}. 这可能需要更高的权限."
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "获取系统设置时出错", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "获取系统设置时出错: ${e.message}"
             )
         }
     }
 
     /** 安装应用程序 需要APK文件的路径 */
-    suspend fun installApp(tool: AITool): ToolResult {
+    open suspend fun installApp(tool: AITool): ToolResult {
         val apkPath = tool.parameters.find { it.name == "apk_path" }?.value ?: ""
 
         if (apkPath.isBlank()) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "必须提供apk_path参数"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "必须提供apk_path参数"
             )
         }
 
-        // 检查文件是否存在
-        val existsResult =
-                AndroidShellExecutor.executeShellCommand(
-                        "test -f $apkPath && echo 'exists' || echo 'not exists'"
-                )
-        if (existsResult.stdout.trim() != "exists") {
+        val file = File(apkPath)
+        if (!file.exists()) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "APK文件不存在: $apkPath"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "APK文件不存在: $apkPath"
             )
         }
 
         return try {
-            // 使用pm安装应用
-            val command = "pm install -r $apkPath"
-            val result = AndroidShellExecutor.executeShellCommand(command)
+            val intent = Intent(Intent.ACTION_VIEW)
+            val uri = Uri.fromFile(file)
+            intent.setDataAndType(uri, "application/vnd.android.package-archive")
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            context.startActivity(intent)
 
-            if (result.success && result.stdout.contains("Success")) {
-                val resultData =
-                        AppOperationData(
-                                operationType = "install",
-                                packageName = apkPath,
-                                success = true
-                        )
-
-                return ToolResult(
-                        toolName = tool.name,
-                        success = true,
-                        result = resultData,
-                        error = ""
-                )
-            } else {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "安装失败: ${result.stderr}"
-                )
-            }
+            val resultData = AppOperationData(
+                operationType = "install_request",
+                packageName = apkPath,
+                success = true,
+                details = "已发送安装请求，需要用户确认。"
+            )
+            ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
         } catch (e: Exception) {
-            Log.e(TAG, "安装应用时出错", e)
-            return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "安装应用时出错: ${e.message}"
+            Log.e(TAG, "请求安装应用时出错", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "请求安装应用时出错: ${e.message}"
             )
         }
     }
 
     /** 卸载应用程序 需要提供包名 */
-    suspend fun uninstallApp(tool: AITool): ToolResult {
+    open suspend fun uninstallApp(tool: AITool): ToolResult {
         val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
-        val keepData = tool.parameters.find { it.name == "keep_data" }?.value?.toBoolean() ?: false
 
         if (packageName.isBlank()) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "必须提供package_name参数"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "必须提供package_name参数"
             )
         }
 
-        // 检查应用是否已安装
-        val checkCommand = "pm list packages | grep -c \"$packageName\""
-        val checkResult = AndroidShellExecutor.executeShellCommand(checkCommand)
-
-        if (checkResult.stdout.trim() == "0") {
+        try {
+            context.packageManager.getPackageInfo(packageName, 0)
+        } catch (e: PackageManager.NameNotFoundException) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "应用未安装: $packageName"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "应用未安装: $packageName"
             )
         }
 
         return try {
-            // 卸载应用
-            val command =
-                    if (keepData) {
-                        "pm uninstall -k $packageName"
-                    } else {
-                        "pm uninstall $packageName"
-                    }
+            val intent = Intent(Intent.ACTION_DELETE)
+            intent.data = Uri.parse("package:$packageName")
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
 
-            val result = AndroidShellExecutor.executeShellCommand(command)
-
-            if (result.success && result.stdout.contains("Success")) {
-                val details = if (keepData) "(保留数据)" else ""
-                val resultData =
-                        AppOperationData(
-                                operationType = "uninstall",
-                                packageName = packageName,
-                                success = true,
-                                details = details
-                        )
-
-                return ToolResult(
-                        toolName = tool.name,
-                        success = true,
-                        result = resultData,
-                        error = ""
-                )
-            } else {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "卸载失败: ${result.stderr}"
-                )
-            }
+            val resultData = AppOperationData(
+                operationType = "uninstall_request",
+                packageName = packageName,
+                success = true,
+                details = "已发送卸载请求，需要用户确认。"
+            )
+            ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
         } catch (e: Exception) {
-            Log.e(TAG, "卸载应用时出错", e)
-            return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "卸载应用时出错: ${e.message}"
+            Log.e(TAG, "请求卸载应用时出错", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "请求卸载应用时出错: ${e.message}"
             )
         }
     }
 
-    /** 获取已安装应用列表 */
+    /** 获取已安装的应用列表 */
     suspend fun listInstalledApps(tool: AITool): ToolResult {
-        val systemApps =
+        val includeSystemApps =
                 tool.parameters.find { it.name == "include_system_apps" }?.value?.toBoolean()
                         ?: false
-
         return try {
-            val command =
-                    if (systemApps) {
-                        "pm list packages"
-                    } else {
-                        "pm list packages -3" // 只显示第三方应用
-                    }
+            val pm = context.packageManager
+            val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            val appDetails = mutableListOf<String>()
 
-            val result = AndroidShellExecutor.executeShellCommand(command)
-
-            if (result.success) {
-                // 格式化输出，使其更易读
-                val packageList =
-                        result.stdout
-                                .split("\n")
-                                .filter { it.isNotBlank() }
-                                .map { it.replace("package:", "") }
-                                .sorted()
-
-                val resultData =
-                        AppListData(includesSystemApps = systemApps, packages = packageList)
-
-                return ToolResult(
-                        toolName = tool.name,
-                        success = true,
-                        result = resultData,
-                        error = ""
-                )
-            } else {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "获取应用列表失败: ${result.stderr}"
-                )
+            apps.forEach { appInfo ->
+                val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                if (includeSystemApps || !isSystemApp) {
+                    val appName = appInfo.loadLabel(pm).toString()
+                    val packageName = appInfo.packageName
+                    appDetails.add("$appName ($packageName)")
+                }
             }
+
+            val sortedAppDetails = appDetails.sorted()
+            val resultData = AppListData(
+                includesSystemApps = includeSystemApps, 
+                packages = sortedAppDetails
+            )
+            
+            ToolResult(toolName = tool.name, success = true, result = resultData)
         } catch (e: Exception) {
-            Log.e(TAG, "获取应用列表时出错", e)
-            return ToolResult(
+            Log.e(TAG, "获取已安装应用列表时出错", e)
+            ToolResult(
                     toolName = tool.name,
                     success = false,
                     result = StringResultData(""),
-                    error = "获取应用列表时出错: ${e.message}"
+                    error = "获取应用列表失败: ${e.message}"
             )
         }
     }
 
     /** 启动应用程序 如果提供了activity参数，将启动指定的活动 否则使用默认启动器启动应用 */
-    suspend fun startApp(tool: AITool): ToolResult {
+    open suspend fun startApp(tool: AITool): ToolResult {
         val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
-        val activity = tool.parameters.find { it.name == "activity" }?.value ?: ""
+        val activityName = tool.parameters.find { it.name == "activity" }?.value ?: ""
 
         if (packageName.isBlank()) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "必须提供package_name参数"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "必须提供package_name参数"
             )
         }
 
         return try {
-            val command =
-                    if (activity.isBlank()) {
-                        "monkey -p $packageName -c android.intent.category.LAUNCHER 1"
-                    } else {
-                        "am start -n $packageName/$activity"
-                    }
-
-            val result = AndroidShellExecutor.executeShellCommand(command)
-
-            if (result.success) {
-                val details = if (activity.isNotBlank()) "活动: $activity" else ""
-                val resultData =
-                        AppOperationData(
-                                operationType = "start",
-                                packageName = packageName,
-                                success = true,
-                                details = details
-                        )
-
-                return ToolResult(
-                        toolName = tool.name,
-                        success = true,
-                        result = resultData,
-                        error = ""
-                )
+            val intent: Intent? = if (activityName.isBlank()) {
+                context.packageManager.getLaunchIntentForPackage(packageName)
             } else {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "启动应用失败: ${result.stderr}"
+                Intent(Intent.ACTION_MAIN).also {
+                    it.addCategory(Intent.CATEGORY_LAUNCHER)
+                    it.component = ComponentName(packageName, activityName)
+                }
+            }
+
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                val details = if (activityName.isNotBlank()) "活动: $activityName" else ""
+                val resultData = AppOperationData(
+                    operationType = "start",
+                    packageName = packageName,
+                    success = true,
+                    details = details
+                )
+                ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
+            } else {
+                ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result = StringResultData(""),
+                    error = "启动应用失败: 无法找到应用的启动Intent. 请检查包名或Activity名称."
                 )
             }
         } catch (e: Exception) {
             Log.e(TAG, "启动应用时出错", e)
-            return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "启动应用时出错: ${e.message}"
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "启动应用时出错: ${e.message}"
             )
         }
     }
 
     /** 停止应用程序 */
-    suspend fun stopApp(tool: AITool): ToolResult {
+    open suspend fun stopApp(tool: AITool): ToolResult {
         val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
 
         if (packageName.isBlank()) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "必须提供package_name参数"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "必须提供package_name参数"
             )
         }
 
         return try {
-            val command = "am force-stop $packageName"
-            val result = AndroidShellExecutor.executeShellCommand(command)
-
-            if (result.success) {
-                val resultData =
-                        AppOperationData(
-                                operationType = "stop",
-                                packageName = packageName,
-                                success = true
-                        )
-
-                return ToolResult(
-                        toolName = tool.name,
-                        success = true,
-                        result = resultData,
-                        error = ""
-                )
-            } else {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "停止应用失败: ${result.stderr}"
-                )
-            }
+            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            activityManager.killBackgroundProcesses(packageName)
+            val resultData = AppOperationData(
+                operationType = "stop",
+                packageName = packageName,
+                success = true,
+                details = "已请求停止应用后台进程。"
+            )
+            ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "停止应用时出现安全异常", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "停止应用失败: ${e.message}. 需要 KILL_BACKGROUND_PROCESSES 权限."
+            )
         } catch (e: Exception) {
             Log.e(TAG, "停止应用时出错", e)
-            return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "停止应用时出错: ${e.message}"
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "停止应用时出错: ${e.message}"
             )
         }
     }
 
     /** 读取设备通知内容 获取当前设备上的通知信息 */
-    suspend fun getNotifications(tool: AITool): ToolResult {
-        val limit = tool.parameters.find { it.name == "limit" }?.value?.toIntOrNull() ?: 10
-        val includeOngoing =
-                tool.parameters.find { it.name == "include_ongoing" }?.value?.toBoolean() ?: false
+    open suspend fun getNotifications(tool: AITool): ToolResult {
+        val enabledListeners = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+        val myPackageName = context.packageName
 
-        return try {
-            // 使用ADB命令获取通知信息
-            val command =
-                    if (includeOngoing) {
-                        "dumpsys notification --noredact | grep -E 'pkg=|text=' | head -${limit * 2}"
-                    } else {
-                        "dumpsys notification --noredact | grep -v 'ongoing' | grep -E 'pkg=|text=' | head -${limit * 2}"
-                    }
-
-            val result = AndroidShellExecutor.executeShellCommand(command)
-
-            if (result.success) {
-                // 解析通知内容
-                val lines = result.stdout.split("\n")
-                val notifications = mutableListOf<NotificationData.Notification>()
-
-                var currentPackage = ""
-                var currentText = ""
-
-                for (line in lines) {
-                    when {
-                        line.contains("pkg=") -> {
-                            // 如果已经有包名和文本，添加到列表中
-                            if (currentPackage.isNotEmpty() && currentText.isNotEmpty()) {
-                                notifications.add(
-                                        NotificationData.Notification(
-                                                packageName = currentPackage,
-                                                text = currentText,
-                                                timestamp = System.currentTimeMillis()
-                                        )
-                                )
-                                currentText = ""
-                            }
-
-                            // 提取包名
-                            val pkgMatch = Regex("pkg=(\\S+)").find(line)
-                            currentPackage = pkgMatch?.groupValues?.getOrNull(1) ?: ""
-                        }
-                        line.contains("text=") -> {
-                            // 提取通知文本
-                            val textMatch = Regex("text=(.+)").find(line)
-                            currentText = textMatch?.groupValues?.getOrNull(1) ?: ""
-                        }
-                    }
-                }
-
-                // 添加最后一条通知
-                if (currentPackage.isNotEmpty() && currentText.isNotEmpty()) {
-                    notifications.add(
-                            NotificationData.Notification(
-                                    packageName = currentPackage,
-                                    text = currentText,
-                                    timestamp = System.currentTimeMillis()
-                            )
-                    )
-                }
-
-                val resultData =
-                        NotificationData(
-                                notifications = notifications,
-                                timestamp = System.currentTimeMillis()
-                        )
-
-                return ToolResult(
-                        toolName = tool.name,
-                        success = true,
-                        result = resultData,
-                        error = ""
-                )
-            } else {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "获取通知失败: ${result.stderr}"
-                )
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "获取通知时出错", e)
+        if (enabledListeners == null || !enabledListeners.contains(myPackageName)) {
             return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "获取通知时出错: ${e.message}"
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "无法读取通知. 本应用需要被授权为通知监听服务 (Notification Listener Service). " +
+                        "请在系统的通知使用权设置中为本应用授权, 并确保应用中已实现对应的服务."
             )
         }
+
+        return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "原生获取通知的功能需要一个在后台运行的 NotificationListenerService. " +
+                        "当前工具无法直接获取, 需要应用架构支持. "
+        )
     }
 
     /** 获取设备位置信息 通过系统API获取当前设备位置 */

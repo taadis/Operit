@@ -5,6 +5,7 @@ import com.ai.assistance.operit.data.model.ApiProviderType
 import com.ai.assistance.operit.data.model.ModelOption
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.util.ChatUtils
+import com.ai.assistance.operit.util.exceptions.UserCancellationException
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.stream
 import java.io.IOException
@@ -22,20 +23,18 @@ import org.json.JSONObject
 class ClaudeProvider(
         private val apiEndpoint: String,
         private val apiKey: String,
-        private val modelName: String
+        private val modelName: String,
+        private val client: OkHttpClient,
+        private val customHeaders: Map<String, String> = emptyMap()
 ) : AIService {
-    private val client =
-            OkHttpClient.Builder()
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .readTimeout(1000, TimeUnit.SECONDS)
-                    .writeTimeout(1000, TimeUnit.SECONDS)
-                    .build()
+    // private val client: OkHttpClient = HttpClientFactory.instance
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
     private val ANTHROPIC_VERSION = "2023-06-01" // Claude API版本
 
     // 当前活跃的Call对象，用于取消流式传输
     private var activeCall: Call? = null
+    @Volatile private var isManuallyCancelled = false
 
     // 添加token计数器
     private var _inputTokenCount = 0
@@ -47,15 +46,6 @@ class ClaudeProvider(
     override val outputTokenCount: Int
         get() = _outputTokenCount
 
-    // Token计数逻辑
-    private fun estimateTokenCount(text: String): Int {
-        // 简单估算：中文每个字约1.5个token，英文每4个字符约1个token
-        val chineseCharCount = text.count { it.code in 0x4E00..0x9FFF }
-        val otherCharCount = text.length - chineseCharCount
-
-        return (chineseCharCount * 1.5 + otherCharCount * 0.25).toInt()
-    }
-
     // 重置token计数
     override fun resetTokenCounts() {
         _inputTokenCount = 0
@@ -64,6 +54,7 @@ class ClaudeProvider(
 
     // 取消当前流式传输
     override fun cancelStreaming() {
+        isManuallyCancelled = true
         activeCall?.let {
             if (!it.isCanceled()) {
                 it.cancel()
@@ -77,7 +68,8 @@ class ClaudeProvider(
     private fun createRequestBody(
             message: String,
             chatHistory: List<Pair<String, String>>,
-            modelParameters: List<ModelParameter<*>> = emptyList()
+            modelParameters: List<ModelParameter<*>> = emptyList(),
+            enableThinking: Boolean
     ): RequestBody {
         val jsonObject = JSONObject()
         jsonObject.put("model", modelName)
@@ -130,7 +122,7 @@ class ClaudeProvider(
             messagesArray.put(messageObject)
 
             // 计算输入token
-            _inputTokenCount += estimateTokenCount(content)
+            _inputTokenCount += ChatUtils.estimateTokenCount(content)
         }
 
         // 添加当前用户消息
@@ -156,7 +148,7 @@ class ClaudeProvider(
             messagesArray.put(userMessage)
 
             // 计算当前消息的token
-            _inputTokenCount += estimateTokenCount(message)
+            _inputTokenCount += ChatUtils.estimateTokenCount(message)
         } else {
             // 如果上一条消息也是用户，将当前消息与上一条合并
             Log.d("AIService", "合并连续的用户消息")
@@ -168,7 +160,7 @@ class ClaudeProvider(
             lastContentObject.put("text", existingText + "\n" + message)
 
             // 重新计算合并后消息的token
-            _inputTokenCount += estimateTokenCount(message)
+            _inputTokenCount += ChatUtils.estimateTokenCount(message)
         }
 
         jsonObject.put("messages", messagesArray)
@@ -176,24 +168,13 @@ class ClaudeProvider(
         // Claude对系统消息的处理有所不同，它使用system参数
         if (systemPrompt != null) {
             jsonObject.put("system", systemPrompt)
-            _inputTokenCount += estimateTokenCount(systemPrompt)
+            _inputTokenCount += ChatUtils.estimateTokenCount(systemPrompt)
         }
 
         // 添加extended thinking支持
-        val thinkingParam = modelParameters.find { it.apiName == "thinking" }
-        if (thinkingParam != null && thinkingParam.isEnabled) {
-            // 通过thinking参数启用extended thinking
+        if (enableThinking) {
             val thinkingObject = JSONObject()
             thinkingObject.put("type", "enabled")
-            thinkingObject.put("budget_tokens", 8000) // 使用合理的默认值
-
-            // 如果提供了具体的budget_tokens值，则使用该值
-            val budgetTokensParam = modelParameters.find { it.apiName == "budget_tokens" }
-            if (budgetTokensParam != null && budgetTokensParam.isEnabled) {
-                val budgetTokens = (budgetTokensParam.currentValue as? Number)?.toInt() ?: 8000
-                thinkingObject.put("budget_tokens", budgetTokens)
-            }
-
             jsonObject.put("thinking", thinkingObject)
             Log.d("AIService", "启用Claude的extended thinking功能")
         }
@@ -261,14 +242,25 @@ class ClaudeProvider(
                         .addHeader("anthropic-version", ANTHROPIC_VERSION)
                         .addHeader("Content-Type", "application/json")
 
-        return builder.build()
+        // 添加自定义请求头
+        customHeaders.forEach { (key, value) ->
+            builder.addHeader(key, value)
+        }
+
+        val request = builder.build()
+        Log.d("AIService", "Claude请求头: \n${request.headers}")
+        return request
     }
 
     override suspend fun sendMessage(
             message: String,
             chatHistory: List<Pair<String, String>>,
-            modelParameters: List<ModelParameter<*>>
+            modelParameters: List<ModelParameter<*>>,
+            enableThinking: Boolean,
+            onTokensUpdated: suspend (input: Int, output: Int) -> Unit,
+            onNonFatalError: suspend (error: String) -> Unit
     ): Stream<String> = stream {
+        isManuallyCancelled = false
         // 重置token计数
         _inputTokenCount = 0
         _outputTokenCount = 0
@@ -277,12 +269,32 @@ class ClaudeProvider(
         var retryCount = 0
         var lastException: Exception? = null
 
-        val requestBody = createRequestBody(message, chatHistory, modelParameters)
-        val request = createRequest(requestBody)
+        // 用于保存已接收到的内容，以便在重试时使用
+        val receivedContent = StringBuilder()
 
         Log.d("AIService", "准备连接到Claude AI服务...")
         while (retryCount < maxRetries) {
             try {
+                // 如果是重试，我们需要构建一个新的请求
+                val currentMessage: String
+                val currentHistory: List<Pair<String, String>>
+
+                if (retryCount > 0 && receivedContent.isNotEmpty()) {
+                    Log.d("AIService", "【Claude 重试】准备续写请求，已接收内容: ${receivedContent.length}")
+                    // Claude 对续写指令可能需要不同的优化，这里使用一个通用的方式
+                    currentMessage = message + "\n\n[SYSTEM NOTE] The previous response was cut off by a network error. You MUST continue from the exact point of interruption. Do not repeat any content. If you were in the middle of a code block or XML tag, complete it. Just output the text that would have come next."
+                    val resumeHistory = chatHistory.toMutableList()
+                    resumeHistory.add("assistant" to receivedContent.toString())
+                    currentHistory = resumeHistory
+                } else {
+                    currentMessage = message
+                    currentHistory = chatHistory
+                }
+
+                val requestBody = createRequestBody(currentMessage, currentHistory, modelParameters, enableThinking)
+                onTokensUpdated(_inputTokenCount, _outputTokenCount)
+                val request = createRequest(requestBody)
+
                 // 创建Call对象并保存到activeCall中，以便可以取消
                 val call = client.newCall(request)
                 activeCall = call
@@ -320,25 +332,48 @@ class ClaudeProvider(
 
                                         // Claude API在响应中包含content
                                         val type = jsonResponse.optString("type", "")
-                                        val content = jsonResponse.optString("content", "")
-
-                                        if (content.isNotEmpty()) {
-                                            _outputTokenCount += estimateTokenCount(content)
-                                            emit(content)
+                                        
+                                        // 根据type处理不同的事件
+                                        when (type) {
+                                            "content_block_delta" -> {
+                                                val delta = jsonResponse.optJSONObject("delta")
+                                                if (delta != null) {
+                                                    val content = delta.optString("text", "")
+                                                    if (content.isNotEmpty()) {
+                                                        _outputTokenCount += ChatUtils.estimateTokenCount(content)
+                                                        onTokensUpdated(_inputTokenCount, _outputTokenCount)
+                                                        emit(content)
+                                                        receivedContent.append(content)
+                                                    }
+                                                }
+                                            }
+                                            "message_delta" -> {
+                                                 //  可以处理stop_reason等
+                                            }
+                                            "content_block_stop" -> {
+                                                // 块停止
+                                            }
                                         }
+
                                     } catch (e: Exception) {
                                         // 忽略解析错误，继续处理下一行
-                                        Log.d("AIService", "JSON解析错误: ${e.message}")
+                                        Log.w("AIService", "JSON解析错误: ${e.message}")
                                     }
                                 }
                             }
                         }
                     } catch (e: IOException) {
+                        if (isManuallyCancelled) {
+                            Log.d("AIService", "【Claude】流式传输已被用户取消，停止后续操作。")
+                            throw UserCancellationException("请求已被用户取消", e)
+                        }
                         // 捕获IO异常，可能是由于取消Call导致的
                         if (activeCall?.isCanceled() == true) {
                             Log.d("AIService", "流式传输已被取消，处理IO异常")
                             wasCancelled = true
                         } else {
+                             Log.e("AIService", "【Claude】流式读取时发生IO异常，准备重试", e)
+                            lastException = e
                             throw e
                         }
                     }
@@ -348,25 +383,71 @@ class ClaudeProvider(
                 }
 
                 // 成功处理后，返回
+                 Log.d( "AIService", "【Claude】请求成功完成")
                 return@stream
             } catch (e: SocketTimeoutException) {
+                if (isManuallyCancelled) {
+                    Log.d("AIService", "【Claude】请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
                 lastException = e
                 retryCount++
-                Log.d("AIService", "连接超时，正在进行第 $retryCount 次重试...")
-                // 指数退避重试
-                delay(1000L * retryCount)
+                if (retryCount >= maxRetries) {
+                    Log.e("AIService", "【Claude】连接超时且达到最大重试次数", e)
+                    throw IOException("AI响应获取失败，连接超时且已达最大重试次数: ${e.message}")
+                }
+                Log.w("AIService", "【Claude】连接超时，正在进行第 $retryCount 次重试...", e)
+                onNonFatalError("【网络超时，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
             } catch (e: UnknownHostException) {
-                Log.d("AIService", "无法连接到服务器，请检查网络")
+                if (isManuallyCancelled) {
+                    Log.d("AIService", "【Claude】请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
+                lastException = e
+                retryCount++
+                if (retryCount >= maxRetries) {
+                    Log.e("AIService", "【Claude】无法解析主机且达到最大重试次数", e)
                 throw IOException("无法连接到服务器，请检查网络连接或API地址是否正确")
-            } catch (e: Exception) {
-                Log.d("AIService", "连接失败: ${e.message}")
-                throw IOException("AI响应获取失败: ${e.message} ${e.stackTrace.joinToString("\n")}")
+                }
+                Log.w("AIService", "【Claude】无法解析主机，正在进行第 $retryCount 次重试...", e)
+                onNonFatalError("【网络不稳定，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
+            } catch (e: IOException) {
+                if (isManuallyCancelled) {
+                    Log.d("AIService", "【Claude】请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
+                lastException = e
+                retryCount++
+                if(retryCount >= maxRetries) {
+                    Log.e("AIService", "【Claude】达到最大重试次数", e)
+                    throw IOException("AI响应获取失败，已达最大重试次数: ${e.message}")
+                }
+                Log.w("AIService", "【Claude】网络中断，正在进行第 $retryCount 次重试...", e)
+                onNonFatalError("【网络中断，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
+            }
+            catch (e: Exception) {
+                if (isManuallyCancelled) {
+                    Log.d("AIService", "【Claude】请求被用户取消，停止重试。")
+                    throw UserCancellationException("请求已被用户取消", e)
+                }
+                lastException = e
+                retryCount++
+                if(retryCount >= maxRetries) {
+                    Log.e("AIService", "【Claude】发生未知异常且达到最大重试次数", e)
+                    throw IOException("AI响应获取失败: ${e.message}")
+                }
+                Log.e("AIService", "【Claude】连接失败，正在进行第 $retryCount 次重试...", e)
+                onNonFatalError("【连接失败，正在进行第 $retryCount 次重试...】")
+                delay(1000L * (1 shl (retryCount - 1)))
             }
         }
-
-        Log.d("AIService", "重试失败，请检查网络连接")
+        
+        Log.e("AIService", "【Claude】重试失败，请检查网络连接", lastException)
         // 所有重试都失败
-        throw IOException("连接超时，已重试 $maxRetries 次: ${lastException?.message}")
+        throw IOException("连接超时或中断，已重试 $maxRetries 次: ${lastException?.message}")
     }
 
     /**
@@ -380,5 +461,24 @@ class ClaudeProvider(
                 apiEndpoint = apiEndpoint,
                 apiProviderType = ApiProviderType.ANTHROPIC
         )
+    }
+
+    override suspend fun testConnection(): Result<String> {
+        return try {
+            // 通过发送一条短消息来测试完整的连接、认证和API端点。
+            // 这比getModelsList更可靠，因为它直接命中了聊天API。
+            // 提供一个通用的系统提示，以防止某些需要它的模型出现错误。
+            val testHistory = listOf("system" to "You are a helpful assistant.")
+            val stream = sendMessage("Hi", testHistory, emptyList(), false, onTokensUpdated = { _, _ -> }, onNonFatalError = {})
+
+            // 消耗流以确保连接有效。
+            // 对 "Hi" 的响应应该很短，所以这会很快完成。
+            stream.collect { _ -> }
+
+            Result.success("连接成功！")
+        } catch (e: Exception) {
+            Log.e("AIService", "连接测试失败", e)
+            Result.failure(IOException("连接测试失败: ${e.message}", e))
+        }
     }
 }

@@ -8,6 +8,8 @@ import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import java.util.regex.Pattern
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.withTimeout
 
 /**
@@ -18,7 +20,7 @@ class JsToolManager
 private constructor(private val context: Context, private val packageManager: PackageManager) {
     companion object {
         private const val TAG = "JsToolManager"
-        private const val SCRIPT_TIMEOUT_MS = 60000L // 60 seconds timeout
+        private const val SCRIPT_TIMEOUT_MS = 120000L // 120 seconds timeout
 
         @Volatile private var INSTANCE: JsToolManager? = null
 
@@ -79,19 +81,22 @@ private constructor(private val context: Context, private val packageManager: Pa
      * @param tool The tool being executed (provides parameters)
      * @return The result of script execution
      */
-    suspend fun executeScript(script: String, tool: AITool): ToolResult {
+    fun executeScript(script: String, tool: AITool): Flow<ToolResult> = channelFlow {
         try {
             Log.d(TAG, "Executing script for tool: ${tool.name}")
 
             // Extract the function name from the tool name (packageName:toolName)
             val parts = tool.name.split(":")
             if (parts.size != 2) {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = "Invalid tool name format. Expected 'packageName:toolName'"
+                send(
+                        ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error = "Invalid tool name format. Expected 'packageName:toolName'"
+                        )
                 )
+                return@channelFlow
             }
 
             val functionName = parts[1]
@@ -100,149 +105,105 @@ private constructor(private val context: Context, private val packageManager: Pa
             val params = tool.parameters.associate { it.name to it.value }
 
             // Execute the script with timeout
-            val result =
-                    try {
-                        withTimeout(SCRIPT_TIMEOUT_MS) {
-                            Log.d(TAG, "Starting script execution for function: $functionName")
+            try {
+                withTimeout(SCRIPT_TIMEOUT_MS) {
+                    Log.d(TAG, "Starting script execution for function: $functionName")
 
-                            // 记录关键脚本部分，以便调试
-                            try {
-                                // 提取脚本中与函数名相关的代码片段
-                                val functionSignature =
-                                        "(?:function\\s+$functionName|$functionName\\s*=\\s*function|exports\\.$functionName\\s*=\\s*function)"
-                                val pattern = Pattern.compile(functionSignature, Pattern.MULTILINE)
-                                val matcher = pattern.matcher(script)
-
-                                if (matcher.find()) {
-                                    val position = matcher.start()
-                                    val linesBefore = 2
-                                    val linesAfter = 3
-
-                                    // 简单的行数计算
-                                    var startLine = 0
-                                    var endLine = 0
-                                    var currentLine = 1
-                                    var currentPos = 0
-
-                                    for (i in script.indices) {
-                                        if (i == position) {
-                                            startLine = maxOf(1, currentLine - linesBefore)
-                                        }
-
-                                        if (script[i] == '\n') {
-                                            currentLine++
-                                            if (currentLine > startLine + linesAfter &&
-                                                            startLine > 0
-                                            ) {
-                                                endLine = currentLine
-                                                break
-                                            }
-                                        }
-                                    }
-
-                                    if (startLine > 0) {
-                                        val lines = script.split("\n")
-                                        val codeSnippet =
-                                                lines.subList(
-                                                                startLine - 1,
-                                                                minOf(
-                                                                        lines.size,
-                                                                        startLine + linesAfter
-                                                                )
-                                                        )
-                                                        .joinToString("\n")
-                                        Log.d(
-                                                TAG,
-                                                "Function code snippet (lines $startLine-${startLine+linesAfter}):\n$codeSnippet"
+                    val startTime = System.currentTimeMillis()
+                    val scriptResult =
+                            jsEngine.executeScriptFunction(
+                                    script,
+                                    functionName,
+                                    params
+                            ) { intermediateResult ->
+                                val resultString = intermediateResult?.toString() ?: "null"
+                                Log.d(TAG, "Intermediate JS result: $resultString")
+                                trySend(
+                                        ToolResult(
+                                                toolName = tool.name,
+                                                success = true,
+                                                result = StringResultData(resultString)
                                         )
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Error analyzing script for debugging: ${e.message}")
+                                )
                             }
 
-                            val startTime = System.currentTimeMillis()
-                            val scriptResult =
-                                    try {
-                                        jsEngine.executeScriptFunction(script, functionName, params)
-                                    } catch (e: Exception) {
-                                        Log.e(
-                                                TAG,
-                                                "Exception executing JavaScript: ${e.message}",
-                                                e
-                                        )
-                                        throw e
-                                    }
+                    val executionTime = System.currentTimeMillis() - startTime
+                    Log.d(
+                            TAG,
+                            "Script execution completed in ${executionTime}ms with result type: ${scriptResult?.javaClass?.name ?: "null"}"
+                    )
 
-                            val executionTime = System.currentTimeMillis() - startTime
+                    // Handle different types of results
+                    when {
+                        scriptResult == null -> {
+                            send(
+                                    ToolResult(
+                                            toolName = tool.name,
+                                            success = false,
+                                            result = StringResultData(""),
+                                            error = "Script returned null result"
+                                    )
+                            )
+                        }
+                        scriptResult is String && scriptResult.startsWith("Error:") -> {
+                            val errorMsg = scriptResult.substring("Error:".length).trim()
+                            Log.e(TAG, "Script execution error: $errorMsg")
+                            send(
+                                    ToolResult(
+                                            toolName = tool.name,
+                                            success = false,
+                                            result = StringResultData(""),
+                                            error = errorMsg
+                                    )
+                            )
+                        }
+                        else -> {
+                            val finalResultString = scriptResult.toString()
                             Log.d(
                                     TAG,
-                                    "Script execution completed in ${executionTime}ms with result type: ${scriptResult?.javaClass?.name ?: "null"}"
+                                    "Final script result: ${finalResultString.take(100)}${if (finalResultString.length > 100) "..." else ""}"
                             )
-
-                            // Handle different types of results
-                            when {
-                                scriptResult == null -> "Script returned null result"
-                                scriptResult is String && scriptResult.startsWith("Error:") -> {
-                                    // 尝试提取更详细的错误信息
-                                    val errorMsg = scriptResult.substring("Error:".length).trim()
-                                    Log.e(TAG, "Script execution error: $errorMsg")
-                                    throw Exception(errorMsg)
-                                }
-                                else -> {
-                                    Log.d(
-                                            TAG,
-                                            "Parsing script result: ${scriptResult.toString().take(100)}${if (scriptResult.toString().length > 100) "..." else ""}"
+                            send(
+                                    ToolResult(
+                                            toolName = tool.name,
+                                            success = true,
+                                            result = StringResultData(finalResultString)
                                     )
-                                    scriptResult.toString()
-                                }
-                            }
+                            )
                         }
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        // Handle coroutine cancellation specifically
-                        Log.w(TAG, "Script execution was cancelled: ${e.message}")
-                        return ToolResult(
+                    }
+                }
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                Log.w(TAG, "Script execution timed out: ${e.message}")
+                send(
+                        ToolResult(
                                 toolName = tool.name,
                                 success = false,
                                 result = StringResultData(""),
-                                error = "Script execution was cancelled: ${e.message}"
+                                error = "Script execution timed out after ${SCRIPT_TIMEOUT_MS}ms"
                         )
-                    } catch (e: Exception) {
-                        // 捕获并记录其他执行异常
-                        Log.e(TAG, "Exception during script execution: ${e.message}", e)
-                        return ToolResult(
+                )
+            } catch (e: Exception) {
+                // Catch other execution exceptions
+                Log.e(TAG, "Exception during script execution: ${e.message}", e)
+                send(
+                        ToolResult(
                                 toolName = tool.name,
                                 success = false,
                                 result = StringResultData(""),
                                 error = "Script execution failed: ${e.message}"
                         )
-                    }
-
-            // Check if the result is an error message
-            if (result.startsWith("Error:") ||
-                            result.startsWith("Script error:") ||
-                            result.startsWith("Async error:")
-            ) {
-                return ToolResult(
-                        toolName = tool.name,
-                        success = false,
-                        result = StringResultData(""),
-                        error = result
                 )
             }
-
-            return ToolResult(
-                    toolName = tool.name,
-                    success = true,
-                    result = StringResultData(result)
-            )
         } catch (e: Exception) {
             Log.e(TAG, "Error executing script for tool ${tool.name}: ${e.message}", e)
-            return ToolResult(
-                    toolName = tool.name,
-                    success = false,
-                    result = StringResultData(""),
-                    error = "Script execution error: ${e.message}"
+            send(
+                    ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "Script execution error: ${e.message}"
+                    )
             )
         }
     }

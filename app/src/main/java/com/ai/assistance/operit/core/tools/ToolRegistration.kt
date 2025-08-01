@@ -2,9 +2,16 @@ package com.ai.assistance.operit.core.tools
 
 import android.content.Context
 import com.ai.assistance.operit.core.tools.defaultTool.ToolGetter
+import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.ui.permissions.ToolCategory
+import kotlinx.coroutines.flow.last
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
+import com.ai.assistance.operit.api.chat.EnhancedAIService
+import com.google.gson.Gson
+import kotlinx.coroutines.flow.map
 
 /**
  * This file contains all tool registrations centralized for easier maintenance and integration It
@@ -17,6 +24,36 @@ import org.json.JSONArray
  * @param context Application context for tools that need it
  */
 fun registerAllTools(handler: AIToolHandler, context: Context) {
+    // 新增：UI自动化任务工具
+    handler.registerTool(
+        name = "automate_ui_task",
+        category = ToolCategory.UI_AUTOMATION,
+        dangerCheck = { true }, // 高度危险，因为它执行多个自主操作
+        descriptionGenerator = { tool ->
+            val taskGoal = tool.parameters.find { it.name == "task_goal" }?.value ?: ""
+            "执行UI自动化任务: $taskGoal"
+        },
+        executor = object : ToolExecutor {
+            override fun invoke(tool: AITool): ToolResult {
+                return runBlocking {
+                    val flow = invokeAndStream(tool)
+                    val resultsList = flow.toList()
+                    resultsList.lastOrNull() ?: ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Automation task did not produce any result."
+                    )
+                }
+            }
+
+            override fun invokeAndStream(tool: AITool): kotlinx.coroutines.flow.Flow<ToolResult> {
+                val uiTools = ToolGetter.getUITools(context)
+                return uiTools.automateUiTask(tool)
+            }
+        }
+    )
+
     // 不在提示词加入的工具
     handler.registerTool(
             name = "execute_shell",
@@ -54,7 +91,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
 
     // 注册问题库查询工具
     handler.registerTool(
-            name = "query_problem_library",
+            name = "query_knowledge_library",
             category = ToolCategory.FILE_READ,
             dangerCheck = null,
             descriptionGenerator = { tool ->
@@ -62,7 +99,7 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 "查询问题库: $query"
             },
             executor = { tool ->
-                val problemLibraryTool = ToolGetter.getProblemLibraryToolExecutor(context)
+                val problemLibraryTool = ToolGetter.getMemoryQueryToolExecutor(context)
                 problemLibraryTool.invoke(tool)
             }
     )
@@ -227,6 +264,17 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             executor = { tool ->
                 kotlinx.coroutines.runBlocking { fileSystemTools.readFilePart(tool) }
             }
+    )
+
+    // 读取完整文件内容
+    handler.registerTool(
+            name = "read_file_full",
+            category = ToolCategory.FILE_READ,
+            descriptionGenerator = { tool ->
+                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+                "读取完整文件内容: $path"
+            },
+            executor = { tool -> kotlinx.coroutines.runBlocking { fileSystemTools.readFileFull(tool) } }
     )
 
     // 写入文件
@@ -465,9 +513,18 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 val path = tool.parameters.find { it.name == "path" }?.value ?: ""
                 "智能合并AI代码到文件: $path"
             },
-            executor = { tool ->
-                kotlinx.coroutines.runBlocking { fileSystemTools.applyFile(tool) }
-            }
+            executor =
+                    object : ToolExecutor {
+                        override fun invoke(tool: AITool): ToolResult {
+                            return runBlocking { fileSystemTools.applyFile(tool).last() }
+                        }
+
+                        override fun invokeAndStream(
+                                tool: AITool
+                        ): kotlinx.coroutines.flow.Flow<ToolResult> {
+                            return fileSystemTools.applyFile(tool)
+                        }
+                    }
     )
 
     // 压缩文件/目录

@@ -18,6 +18,41 @@ object FileUtils {
     // List of common video file extensions
     private val VIDEO_EXTENSIONS = listOf("mp4", "3gp", "webm", "mkv", "avi", "mov", "flv", "wmv")
 
+    private val TEXT_BASED_EXTENSIONS = setOf(
+        // Common text files
+        "txt", "md", "log", "ini", "env", "csv", "tsv", "text", "me",
+
+        // Web files
+        "html", "htm", "css", "js", "json", "xml", "yaml", "yml", "svg", "url",
+        "sass", "scss", "less", "ejs", "hbs", "pug", "rss", "atom", "vtt", "webmanifest", "jsp", "asp", "aspx",
+
+        // Programming language source files
+        "java", "kt", "kts", "gradle",
+        "c", "cpp", "h", "hpp", "cs", "m",
+        "py", "rb", "php", "go", "swift",
+        "ts", "tsx", "jsx",
+        "sh", "bat", "ps1", "zsh",
+        "sql", "groovy", "lua", "perl", "pl", "r", "dart", "rust", "rs", "scala",
+        "asm", "pas", "f", "f90", "for", "lisp", "hs", "erl", "vb", "vbs", "tcl", "d", "nim", "sol", "zig", "vala", "cob", "cbl",
+
+        // Config files
+        "properties", "toml", "dockerfile", "gitignore", "gitattributes", "editorconfig", "conf", "cfg",
+        "jsonc", "json5", "reg", "iml", "inf",
+
+        // Document formats & Data Serialization
+        "rtf", "tex", "srt", "sub", "asciidoc", "adoc", "rst", "org", "wiki", "mediawiki",
+        "vcf", "ics", "gpx", "kml", "opml"
+    )
+
+    /**
+     * Checks if a file extension corresponds to a text-based file format.
+     * @param extension The file extension without the dot (e.g., "txt", "java").
+     * @return True if the extension is for a known text-based file, false otherwise.
+     */
+    fun isTextBasedExtension(extension: String): Boolean {
+        return extension.lowercase() in TEXT_BASED_EXTENSIONS
+    }
+
     /**
      * Check if a URI points to a video file
      * @param context The application context

@@ -101,11 +101,12 @@ class ChatHistoryManager private constructor(private val context: Context) {
                         ChatHistory(
                                 id = chatEntity.id,
                                 title = chatEntity.title,
-                                messages = emptyList(), // 不加载消息，提高性能
+                                messages = emptyList(), // 关键改动：不加载完整消息，以提高侧边栏性能
                                 createdAt = createdAt,
                                 updatedAt = updatedAt,
                                 inputTokens = chatEntity.inputTokens,
                                 outputTokens = chatEntity.outputTokens,
+                                currentWindowSize = chatEntity.currentWindowSize,
                                 group = chatEntity.group, // 映射group字段
                                 displayOrder = chatEntity.displayOrder,
                                 workspace = chatEntity.workspace // 映射workspace字段
@@ -216,7 +217,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                             title = chat.title,
                             timestamp = System.currentTimeMillis(),
                             inputTokens = chat.inputTokens,
-                            outputTokens = chat.outputTokens
+                            outputTokens = chat.outputTokens,
+                            currentWindowSize = chat.currentWindowSize
                     )
                 }
             } catch (e: Exception) {
@@ -287,6 +289,36 @@ class ChatHistoryManager private constructor(private val context: Context) {
         }
     }
 
+    /**
+     * 删除单条消息.
+     * @param chatId 聊天ID
+     * @param timestamp 消息时间戳
+     */
+    suspend fun deleteMessage(chatId: String, timestamp: Long) {
+        mutex.withLock {
+            try {
+                // This assumes a method in MessageDao to delete by timestamp, which is a reasonable
+                // assumption to fix the current compilation error.
+                messageDao.deleteMessageByTimestamp(chatId, timestamp)
+
+                // Update chat metadata
+                chatDao.getChatById(chatId)?.let { chat ->
+                    chatDao.updateChatMetadata(
+                            chatId = chatId,
+                            title = chat.title,
+                            timestamp = System.currentTimeMillis(),
+                            inputTokens = chat.inputTokens,
+                            outputTokens = chat.outputTokens,
+                            currentWindowSize = chat.currentWindowSize
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete message with timestamp $timestamp for chat $chatId", e)
+                throw e
+            }
+        }
+    }
+
     // 更新现有消息
     suspend fun updateMessage(chatId: String, message: ChatMessage) {
         mutex.withLock {
@@ -306,7 +338,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                                 title = chat.title,
                                 timestamp = System.currentTimeMillis(),
                                 inputTokens = chat.inputTokens,
-                                outputTokens = chat.outputTokens
+                                outputTokens = chat.outputTokens,
+                                currentWindowSize = chat.currentWindowSize
                         )
                     }
                 } else {
@@ -339,7 +372,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                             title = chat.title,
                             timestamp = System.currentTimeMillis(),
                             inputTokens = chat.inputTokens,
-                            outputTokens = chat.outputTokens
+                            outputTokens = chat.outputTokens,
+                            currentWindowSize = chat.currentWindowSize
                     )
                 }
             } catch (e: Exception) {
@@ -369,7 +403,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                             title = chat.title,
                             timestamp = System.currentTimeMillis(),
                             inputTokens = 0,
-                            outputTokens = 0
+                            outputTokens = 0,
+                            currentWindowSize = 0
                     )
                 }
             } catch (e: Exception) {
@@ -392,7 +427,12 @@ class ChatHistoryManager private constructor(private val context: Context) {
     }
 
     // 更新聊天的token计数
-    suspend fun updateChatTokenCounts(chatId: String, inputTokens: Int, outputTokens: Int) {
+    suspend fun updateChatTokenCounts(
+        chatId: String,
+        inputTokens: Int,
+        outputTokens: Int,
+        currentWindowSize: Int
+    ) {
         mutex.withLock {
             try {
                 val chat = chatDao.getChatById(chatId)
@@ -402,7 +442,8 @@ class ChatHistoryManager private constructor(private val context: Context) {
                             title = chat.title,
                             timestamp = System.currentTimeMillis(),
                             inputTokens = inputTokens,
-                            outputTokens = outputTokens
+                            outputTokens = outputTokens,
+                            currentWindowSize = currentWindowSize
                     )
                 }
             } catch (e: Exception) {

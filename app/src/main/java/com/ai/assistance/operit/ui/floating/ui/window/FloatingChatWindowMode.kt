@@ -2,6 +2,7 @@ package com.ai.assistance.operit.ui.floating.ui.window
 
 import android.util.Log
 import androidx.compose.animation.core.*
+import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,11 +44,13 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
 import com.ai.assistance.operit.ui.features.chat.components.AttachmentChip
 import com.ai.assistance.operit.ui.floating.FloatContext
@@ -87,6 +90,9 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
     
     // Single flag to indicate user is dragging to resize or scale
     var isDragging by remember { mutableStateOf(false) }
+    
+    // 获取isUiBusy的当前值
+    // 删除 isUiBusy 相关内容
 
     // Effect to sync local state with the source of truth from floatContext
     // when the user is not actively dragging.
@@ -218,8 +224,7 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
                             ) {
                                 Text(
                                     text = "AI助手",
-                                                style =
-                                                        MaterialTheme.typography.titleMedium.copy(
+                                    style = MaterialTheme.typography.titleMedium.copy(
                                         fontWeight = FontWeight.Medium
                                     ),
                                     color = MaterialTheme.colorScheme.primary
@@ -364,9 +369,9 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
                             }
                         }
                     }
-
-                            // 聊天内容区域 - 使用 modifier.weight(1f) 让它占据 Column 中的剩余空间
-                            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                    
+                    // 聊天内容区域 - 使用 modifier.weight(1f) 让它占据 Column 中的剩余空间
+                    Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                         // 这里放置聊天内容...
                         
                                 // 条件性显示聊天内容或输入框
@@ -459,7 +464,7 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
                                                         floatContext.showInputDialog = false
                                                         floatContext.showAttachmentPanel =
                                                                 false // 确保关闭附件选择面板
-                                            }
+                                                    }
                                             ) {
                                                 Icon(
                                                         imageVector = Icons.Default.Close,
@@ -973,16 +978,6 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
                             floatContext.coroutineScope.launch {
                                 // 位置附件 - 在service层处理
                                         floatContext.onAttachmentRequest?.invoke("location_capture")
-                                // 允许附件面板关闭，但稍后再刷新附件列表
-                                delay(500) // 给Service一点时间处理附件
-                                // 保持附件面板关闭状态，但内容已更新
-                                floatContext.showAttachmentPanel = false
-                            }
-                        },
-                        onAttachProblemMemory = {
-                            floatContext.coroutineScope.launch {
-                                // 问题记忆附件 - 在service层处理
-                                        floatContext.onAttachmentRequest?.invoke("problem_memory")
                                 // 允许附件面板关闭，但稍后再刷新附件列表
                                 delay(500) // 给Service一点时间处理附件
                                 // 保持附件面板关闭状态，但内容已更新

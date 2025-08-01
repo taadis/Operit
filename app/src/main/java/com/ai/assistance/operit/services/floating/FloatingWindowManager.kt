@@ -10,16 +10,31 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.AttachmentInfo
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
@@ -52,7 +67,9 @@ class FloatingWindowManager(
     private val TAG = "FloatingWindowManager"
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var composeView: ComposeView? = null
+    private var statusIndicatorView: ComposeView? = null
     private var isViewAdded = false
+    private var isIndicatorAdded = false
 
     @SuppressLint("ClickableViewAccessibility")
     fun show() {
@@ -83,6 +100,7 @@ class FloatingWindowManager(
     }
 
     fun destroy() {
+        hideStatusIndicator()
         if (isViewAdded) {
             composeView?.let {
                 try {
@@ -132,6 +150,111 @@ class FloatingWindowManager(
                 chatService = context as? FloatingChatService,
                 windowState = state
         )
+    }
+
+    fun setWindowInteraction(enabled: Boolean) {
+        composeView?.let { view ->
+            val currentMode = state.currentMode.value
+            if (enabled) {
+                // Always make it visible when interaction is enabled
+                view.visibility = View.VISIBLE
+                hideStatusIndicator()
+                updateViewLayout { params ->
+                    // Restore interactiveness by removing the flag
+                    params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+                }
+                Log.d(TAG, "Floating window interaction enabled.")
+            } else { // Interaction is disabled
+                if (currentMode == FloatingMode.FULLSCREEN || currentMode == FloatingMode.WINDOW) {
+                    // For fullscreen or window mode, hide the view completely to avoid interfering with screen capture
+                    view.visibility = View.GONE
+                    showStatusIndicator()
+                    Log.d(TAG, "Floating window view hidden for $currentMode mode, showing status indicator.")
+                } else {
+                    // For other modes, just make it non-touchable but keep it visible for the overlay
+                    updateViewLayout { params ->
+                        params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                    }
+                    Log.d(TAG, "Floating window interaction disabled for mode: $currentMode.")
+                }
+            }
+        }
+    }
+
+    private fun showStatusIndicator() {
+        if (isIndicatorAdded) return
+        statusIndicatorView = ComposeView(context).apply {
+            // Set the necessary owners for the ComposeView to work correctly.
+            setViewTreeLifecycleOwner(lifecycleOwner)
+            setViewTreeViewModelStoreOwner(viewModelStoreOwner)
+            setViewTreeSavedStateRegistryOwner(savedStateRegistryOwner)
+
+            setContent {
+                FloatingWindowTheme(
+                    colorScheme = callback.getColorScheme(),
+                    typography = callback.getTypography()
+                ) {
+                    StatusIndicator()
+                }
+            }
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            y = (context.resources.displayMetrics.density * 16).toInt() // 16dp margin from top
+        }
+        windowManager.addView(statusIndicatorView, params)
+        isIndicatorAdded = true
+        Log.d(TAG, "Status indicator shown.")
+    }
+
+    private fun hideStatusIndicator() {
+        if (isIndicatorAdded) {
+            statusIndicatorView?.let {
+                try {
+                    windowManager.removeView(it)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error removing status indicator view", e)
+                }
+            }
+            statusIndicatorView = null
+            isIndicatorAdded = false
+            Log.d(TAG, "Status indicator hidden.")
+        }
+    }
+
+    @Composable
+    private fun StatusIndicator() {
+        Card(
+            modifier = Modifier
+                .padding(16.dp)
+                .wrapContentSize(),
+            shape = RoundedCornerShape(24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f))
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    strokeWidth = 2.5.dp
+                )
+                Text(
+                    text = context.getString(R.string.ui_automation_in_progress),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+        }
     }
 
     private fun createLayoutParams(): WindowManager.LayoutParams {

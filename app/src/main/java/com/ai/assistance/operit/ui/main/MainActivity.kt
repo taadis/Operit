@@ -12,10 +12,21 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
+import com.ai.assistance.operit.R
+import com.ai.assistance.operit.core.invitation.InvitationManager
+import com.ai.assistance.operit.core.invitation.ProcessInvitationResult
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.migration.ChatHistoryMigrationManager
 import com.ai.assistance.operit.data.preferences.AgreementPreferences
@@ -30,10 +41,13 @@ import com.ai.assistance.operit.ui.features.permission.screens.PermissionGuideSc
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingScreenWithState
 import com.ai.assistance.operit.ui.features.startup.screens.PluginLoadingState
 import com.ai.assistance.operit.ui.theme.OperitTheme
+import com.ai.assistance.operit.util.AnrMonitor
 import com.ai.assistance.operit.util.LocaleUtils
 import java.util.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.content.ClipboardManager
+import android.content.ClipData
 
 class MainActivity : ComponentActivity() {
     private val TAG = "MainActivity"
@@ -42,17 +56,23 @@ class MainActivity : ComponentActivity() {
     private lateinit var toolHandler: AIToolHandler
     private lateinit var preferencesManager: UserPreferencesManager
     private lateinit var agreementPreferences: AgreementPreferences
+    private lateinit var invitationManager: InvitationManager // Add InvitationManager instance
     private var updateCheckPerformed = false
+    private lateinit var anrMonitor: AnrMonitor
+
+    // ======== 对话框状态 ========
+    private var showConfirmationDialogState by mutableStateOf<String?>(null)
+    private var showReminderDialogState by mutableStateOf<String?>(null)
 
     // ======== 导航状态 ========
-    private var showPreferencesGuide = false
+    private var showPreferencesGuide by mutableStateOf(false)
 
     // ======== MCP插件状态 ========
     private val pluginLoadingState = PluginLoadingState()
 
     // ======== 数据迁移状态 ========
     private lateinit var migrationManager: ChatHistoryMigrationManager
-    private var showMigrationScreen = false
+    private var showMigrationScreen by mutableStateOf(false)
 
     // ======== 双击返回退出相关变量 ========
     private var backPressedTime: Long = 0
@@ -62,7 +82,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var updateManager: UpdateManager
 
     // 是否显示权限引导界面
-    private var showPermissionGuide = false
+    private var showPermissionGuide by mutableStateOf(false)
 
     // 是否已完成权限和迁移检查
     private var initialChecksDone = false
@@ -99,6 +119,7 @@ class MainActivity : ComponentActivity() {
         // 语言设置已在Application中初始化，这里无需重复
 
         initializeComponents()
+        anrMonitor.start()
         setupPreferencesListener()
         configureDisplaySettings()
 
@@ -112,7 +133,7 @@ class MainActivity : ComponentActivity() {
         }
 
         // 设置初始界面 - 显示加载占位符
-        setInitialContent()
+        setAppContent()
 
         // 初始化并设置更新管理器
         setupUpdateManager()
@@ -124,7 +145,6 @@ class MainActivity : ComponentActivity() {
         } else {
             // 配置变更时不重新检查，直接显示主界面
             initialChecksDone = true
-            setAppContent()
         }
 
         // 设置双击返回退出
@@ -132,19 +152,6 @@ class MainActivity : ComponentActivity() {
     }
 
     // ======== 设置初始占位内容 ========
-    private fun setInitialContent() {
-        setContent {
-            OperitTheme {
-                Box {
-                    // 初始阶段只显示一个加载界面
-                    PluginLoadingScreenWithState(
-                            loadingState = PluginLoadingState().apply { show() },
-                            modifier = Modifier.zIndex(10f)
-                    )
-                }
-            }
-        }
-    }
 
     // ======== 执行初始化检查 ========
     private fun performInitialChecks() {
@@ -241,6 +248,45 @@ class MainActivity : ComponentActivity() {
 
         // 清理临时文件目录
         cleanTemporaryFiles()
+        // Check clipboard for invitation code when the app resumes
+        checkClipboardForInvitation()
+    }
+
+    private fun checkClipboardForInvitation() {
+        lifecycleScope.launch {
+            // 等待一小段时间，确保应用完全获得焦点，避免因Android 10+剪贴板限制导致读取失败
+            delay(500)
+
+            Log.d(TAG, "检查剪贴板中的邀请码...")
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            val clipData = clipboard?.primaryClip
+            if (clipData != null && clipData.itemCount > 0) {
+                val text = clipData.getItemAt(0).coerceToText(this@MainActivity).toString()
+                if (text.isNotBlank()) {
+                    Log.d(TAG, "剪贴板内容: '$text'")
+                    when (val result = invitationManager.processInvitationFromText(text)) {
+                        is ProcessInvitationResult.Success -> {
+                            Log.d(TAG, "邀请码处理成功: ${result.confirmationCode}")
+                            // Clear clipboard to prevent re-triggering
+                            clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
+                            showConfirmationDialogState = result.confirmationCode
+                        }
+                        is ProcessInvitationResult.Reminder -> {
+                            Log.d(TAG, "邀请码提醒: ${result.confirmationCode}")
+                            // Clear clipboard to prevent re-triggering
+                            clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
+                            showReminderDialogState = result.confirmationCode
+                        }
+                        is ProcessInvitationResult.Failure -> Log.d(TAG, "Clipboard check failed: ${result.reason}")
+                        is ProcessInvitationResult.AlreadyInvited -> Log.d(TAG, "Device already invited by someone else.")
+                    }
+                } else {
+                    Log.d(TAG, "剪贴板内容为空白。")
+                }
+            } else {
+                Log.d(TAG, "剪贴板为空或无项目。")
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -252,6 +298,8 @@ class MainActivity : ComponentActivity() {
 
         // 确保隐藏加载界面
         pluginLoadingState.hide()
+
+        anrMonitor.stop()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -267,6 +315,11 @@ class MainActivity : ComponentActivity() {
         // 初始化工具处理器
         toolHandler = AIToolHandler.getInstance(this)
         toolHandler.registerDefaultTools()
+
+        // Initialize InvitationManager
+        invitationManager = InvitationManager(this)
+
+        anrMonitor = AnrMonitor(this, lifecycleScope)
 
         // 初始化用户偏好管理器并直接检查初始化状态
         preferencesManager = UserPreferencesManager(this)
@@ -352,67 +405,88 @@ class MainActivity : ComponentActivity() {
 
     // ======== 设置应用内容 ========
     private fun setAppContent() {
-        // 如果初始化检查未完成，不显示主界面
-        if (!initialChecksDone) return
-
         setContent {
             OperitTheme {
                 Box {
-                    // 检查是否需要显示用户协议
-                    if (!agreementPreferences.isAgreementAccepted()) {
-                        AgreementScreen(
-                                onAgreementAccepted = {
-                                    agreementPreferences.setAgreementAccepted(true)
-                                    // 协议接受后，检查权限级别设置
-                                    lifecycleScope.launch {
-                                        // 确保使用非阻塞方式更新UI
-                                        delay(300) // 短暂延迟确保UI状态更新
-                                        checkPermissionLevelSet()
+                    // 如果初始化检查未完成，则显示一个占位符，避免在检查完成前显示不完整的界面
+                    if (!initialChecksDone) {
+                        // 在这里可以放置一个加载指示器，或者一个空白屏幕
+                        // 为了简单起见，我们暂时留空，因为检查过程很快
+                    } else {
+                        // 检查是否需要显示用户协议
+                        if (!agreementPreferences.isAgreementAccepted()) {
+                            AgreementScreen(
+                                    onAgreementAccepted = {
+                                        agreementPreferences.setAgreementAccepted(true)
+                                        // 协议接受后，检查权限级别设置
+                                        lifecycleScope.launch {
+                                            // 确保使用非阻塞方式更新UI
+                                            delay(300) // 短暂延迟确保UI状态更新
+                                            checkPermissionLevelSet()
+                                            // 重新设置应用内容
+                                            setAppContent()
+                                        }
+                                    }
+                            )
+                        }
+                        // 检查是否需要显示数据迁移界面
+                        else if (showMigrationScreen) {
+                            MigrationScreen(
+                                    migrationManager = migrationManager,
+                                    onComplete = {
+                                        showMigrationScreen = false
+                                        // 迁移完成后，启动插件加载
+                                        startPluginLoading()
                                         // 重新设置应用内容
                                         setAppContent()
                                     }
-                                }
-                        )
+                            )
+                        }
+                        // 检查是否需要显示权限引导界面
+                        else if (showPermissionGuide) {
+                            PermissionGuideScreen(
+                                    onComplete = {
+                                        showPermissionGuide = false
+                                        // 权限设置完成后，重新设置应用内容
+                                        setAppContent()
+                                    }
+                            )
+                        }
+                        // 显示主应用界面
+                        else {
+                            // 主应用界面 (始终存在于底层)
+                            OperitApp(
+                                    initialNavItem =
+                                            when {
+                                                showPreferencesGuide -> NavItem.UserPreferencesGuide
+                                                else -> NavItem.AiChat
+                                            },
+                                    toolHandler = toolHandler
+                            )
+                        }
                     }
-                    // 检查是否需要显示数据迁移界面
-                    else if (showMigrationScreen) {
-                        MigrationScreen(
-                                migrationManager = migrationManager,
-                                onComplete = {
-                                    showMigrationScreen = false
-                                    // 迁移完成后，启动插件加载
-                                    startPluginLoading()
-                                    // 重新设置应用内容
-                                    setAppContent()
-                                }
-                        )
-                    }
-                    // 检查是否需要显示权限引导界面
-                    else if (showPermissionGuide) {
-                        PermissionGuideScreen(
-                                onComplete = {
-                                    showPermissionGuide = false
-                                    // 权限设置完成后，重新设置应用内容
-                                    setAppContent()
-                                }
-                        )
-                    }
-                    // 显示主应用界面
-                    else {
-                        // 主应用界面 (始终存在于底层)
-                        OperitApp(
-                                initialNavItem =
-                                        when {
-                                            showPreferencesGuide -> NavItem.UserPreferencesGuide
-                                            else -> NavItem.AiChat
-                                        },
-                                toolHandler = toolHandler
-                        )
+                    // 插件加载界面 (带有淡出效果) - 始终在最上层
+                    PluginLoadingScreenWithState(
+                            loadingState = pluginLoadingState,
+                            modifier = Modifier.zIndex(10f) // 确保加载界面在最上层
+                    )
 
-                        // 插件加载界面 (带有淡出效果)
-                        PluginLoadingScreenWithState(
-                                loadingState = pluginLoadingState,
-                                modifier = Modifier.zIndex(10f) // 确保加载界面在最上层
+                    // 显示邀请结果对话框
+                    showConfirmationDialogState?.let { code ->
+                        InvitationResultDialog(
+                            title = "邀请已接受！",
+                            message = "请将以下返回码发送给你的朋友，以完成最终邀请步骤：\n\n$code",
+                            confirmationCode = code,
+                            onDismiss = { showConfirmationDialogState = null }
+                        )
+                    }
+
+                    showReminderDialogState?.let { code ->
+                        InvitationResultDialog(
+                            title = "是不是忘记了什么？",
+                            message = "你好像又被同一个人邀请了呢，是不是忘记把下面的返回码发给他了？拿稳！\n\n$code",
+                            confirmationCode = code,
+                            onDismiss = { showReminderDialogState = null }
                         )
                     }
                 }
@@ -532,12 +606,18 @@ class MainActivity : ComponentActivity() {
             try {
                 val tempDir = java.io.File("/sdcard/Download/Operit/cleanOnExit")
                 if (tempDir.exists() && tempDir.isDirectory) {
+                    // 确保.nomedia文件存在
+                    val noMediaFile = java.io.File(tempDir, ".nomedia")
+                    if (!noMediaFile.exists()) {
+                        noMediaFile.createNewFile()
+                    }
+                    
                     Log.d(TAG, "开始清理临时文件目录: ${tempDir.absolutePath}")
                     val files = tempDir.listFiles()
                     var deletedCount = 0
 
                     files?.forEach { file ->
-                        if (file.isFile && file.delete()) {
+                        if (file.isFile && file.name != ".nomedia" && file.delete()) {
                             deletedCount++
                         }
                     }
@@ -549,4 +629,37 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+@Composable
+private fun InvitationResultDialog(
+    title: String,
+    message: String,
+    confirmationCode: String,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = title) },
+        text = { Text(text = message) },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("Confirmation Code", confirmationCode)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(context, "返回码已复制！", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                }
+            ) {
+                Text("复制返回码")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        }
+    )
 }

@@ -11,14 +11,21 @@ import androidx.core.os.LocaleListCompat
 import coil.ImageLoader
 import coil.disk.DiskCache
 import coil.request.CachePolicy
+import com.ai.assistance.operit.core.chat.AIMessageManager
+import com.ai.assistance.operit.core.config.SystemPromptConfig
+import com.ai.assistance.operit.core.invitation.InvitationManager
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.db.AppDatabase
 import com.ai.assistance.operit.data.mcp.MCPImageCache
+import com.ai.assistance.operit.data.preferences.FunctionalPromptManager
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.preferences.initAndroidPermissionPreferences
 import com.ai.assistance.operit.data.preferences.initUserPreferencesManager
 import com.ai.assistance.operit.data.preferences.preferencesManager
+import com.ai.assistance.operit.services.EmbeddingService
 import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
+import com.ai.assistance.operit.ui.features.chat.webview.computer.ComputerDesktopManager
+import com.ai.assistance.operit.ui.features.chat.webview.workspace.editor.language.LanguageFactory
 import com.ai.assistance.operit.util.GlobalExceptionHandler
 import com.ai.assistance.operit.util.LocaleUtils
 import com.ai.assistance.operit.util.SerializationSetup
@@ -62,6 +69,21 @@ class OperitApplication : Application() {
         super.onCreate()
         instance = this
 
+        // 初始化全局桌面管理器
+        ComputerDesktopManager.initialize(this)
+        
+        // Initialize ActivityLifecycleManager to track the current activity
+        ActivityLifecycleManager.initialize(this)
+
+        // Initialize AIMessageManager
+        AIMessageManager.initialize(this)
+
+        // Initialize Embedding Service as early as possible
+        EmbeddingService.initialize(this)
+
+        // Initialize ANR monitor
+        // AnrMonitor.start() // This line was removed from the new_code, so it's removed here.
+
         // 在所有其他初始化之前设置全局异常处理器
         Thread.setDefaultUncaughtExceptionHandler(GlobalExceptionHandler(this))
 
@@ -80,6 +102,11 @@ class OperitApplication : Application() {
         // 初始化Android权限偏好管理器
         initAndroidPermissionPreferences(applicationContext)
 
+        // 初始化功能提示词管理器
+        applicationScope.launch {
+            FunctionalPromptManager(applicationContext).initializeIfNeeded()
+        }
+
         // 在最早时机初始化并应用语言设置
         initializeAppLanguage()
 
@@ -88,6 +115,9 @@ class OperitApplication : Application() {
 
         // 初始化PDFBox资源加载器
         PDFBoxResourceLoader.init(getApplicationContext());
+
+        // 初始化语言支持
+        LanguageFactory.init()
 
         // 初始化图片缓存
         MCPImageCache.initialize(applicationContext)
@@ -202,10 +232,15 @@ class OperitApplication : Application() {
         super.onTerminate()
         // 在应用终止时关闭LocalWebServer服务器
         try {
-            val webServer = LocalWebServer.getInstance(applicationContext)
+            val webServer = LocalWebServer.getInstance(applicationContext, LocalWebServer.ServerType.WORKSPACE)
             if (webServer.isRunning()) {
                 webServer.stop()
                 Log.d(TAG, "应用终止，已关闭本地Web服务器")
+            }
+            val computerServer = LocalWebServer.getInstance(applicationContext, LocalWebServer.ServerType.COMPUTER)
+            if (computerServer.isRunning()) {
+                computerServer.stop()
+                Log.d(TAG, "应用终止，已关闭AI电脑服务器")
             }
         } catch (e: Exception) {
             Log.e(TAG, "关闭本地Web服务器失败: ${e.message}", e)

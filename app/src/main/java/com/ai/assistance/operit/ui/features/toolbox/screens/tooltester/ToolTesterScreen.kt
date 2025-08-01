@@ -15,8 +15,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -31,6 +34,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 
 /** 工具测试屏幕 - 最终版网格布局 + 中间弹窗详情 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,40 +43,65 @@ fun ToolTesterScreen(navController: NavController) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val aiToolHandler = remember { AIToolHandler.getInstance(context) }
+    val focusRequester = remember { FocusRequester() }
 
     var testResults by remember { mutableStateOf<Map<String, ToolTestResult>>(emptyMap()) }
     var isTestingAll by remember { mutableStateOf(false) }
     var selectedTestForDetails by remember { mutableStateOf<ToolTest?>(null) }
     var showDialog by remember { mutableStateOf(false) }
+    var testInputText by remember { mutableStateOf("") }
 
     val toolGroups = remember { getFinalToolTestGroups() }
 
     suspend fun runTest(toolTest: ToolTest) {
-        withContext(Dispatchers.IO) {
-            launch(Dispatchers.Main) {
-                testResults = testResults.toMutableMap().apply {
-                    put(toolTest.id, ToolTestResult(TestStatus.RUNNING, null))
-                }
+        // UI preparation phase on Main thread
+        if (toolTest.id == "set_input_text" || toolTest.id == "click_element") {
+            // If the dialog is showing for a single test run, dismiss it first.
+            if (showDialog) {
+                showDialog = false
+                delay(300) // Wait for dialog animation to finish.
             }
-            val result = try {
+            focusRequester.requestFocus()
+            delay(100) // Wait for focus to be processed by the system.
+        }
+
+        // Mark test as running on Main thread
+        testResults = testResults.toMutableMap().apply {
+            put(toolTest.id, ToolTestResult(TestStatus.RUNNING, null))
+        }
+
+        // Execution phase on IO thread
+        val result = withContext(Dispatchers.IO) {
+            try {
                 aiToolHandler.executeTool(AITool(toolTest.id, toolTest.parameters))
             } catch (e: Exception) {
                 ToolResult(toolName = toolTest.id, success = false, result = StringResultData(""), error = e.message ?: "Unknown error")
             }
-            launch(Dispatchers.Main) {
-                testResults = testResults.toMutableMap().apply {
-                    put(toolTest.id, ToolTestResult(if (result.success) TestStatus.SUCCESS else TestStatus.FAILED, result))
-                }
-            }
+        }
+
+        // Update UI with result on Main thread
+        testResults = testResults.toMutableMap().apply {
+            put(toolTest.id, ToolTestResult(if (result.success) TestStatus.SUCCESS else TestStatus.FAILED, result))
         }
     }
 
     Scaffold() { paddingValues ->
-        Column(modifier = Modifier.padding(paddingValues)) {
+        Column(modifier = Modifier.padding(paddingValues).fillMaxSize().verticalScroll(rememberScrollState())) {
             // Header Section
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("AI工具可用性测试", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("所有AI工具已按功能分组，点击格子查看详情和操作。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                
+                OutlinedTextField(
+                    value = testInputText,
+                    onValueChange = { testInputText = it },
+                    label = { Text("测试输入框 (用于UI测试)") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                        .testTag("tool_tester_input")
+                )
+
                 Button(
                     onClick = {
                         scope.launch {
@@ -106,7 +135,7 @@ fun ToolTesterScreen(navController: NavController) {
             // Grid Body
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 75.dp),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxWidth().height(800.dp), // 设定一个足够的高度以避免嵌套滚动问题
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -268,7 +297,7 @@ private fun getFinalToolTestGroups(): List<ToolGroup> {
             ToolTest("manage_cookies", "管理Cookie", "获取google.com的Cookie", listOf(ToolParameter("action", "get"), ToolParameter("domain", "google.com"))),
             ToolTest("visit_web", "访问网页", "访问Baidu并提取内容", listOf(ToolParameter("url", "https://www.baidu.com"))),
             ToolTest("use_package", "使用包", "测试激活一个不存在的包", listOf(ToolParameter("package_name", "non_existent_package"))),
-            ToolTest("query_problem_library", "查询问题库", "测试查询问题库", listOf(ToolParameter("query", "test")))
+            ToolTest("query_knowledge_library", "查询问题库", "测试查询问题库", listOf(ToolParameter("query", "test")))
         )),
         ToolGroup("文件只读 (并行)", false, false, listOf(
             ToolTest("list_files", "列出文件", "列出测试目录的文件", listOf(ToolParameter("path", testBaseDir))),
@@ -295,6 +324,8 @@ private fun getFinalToolTestGroups(): List<ToolGroup> {
         ToolGroup("UI自动化 (并行, 可能失败)", false, false, listOf(
             ToolTest("get_page_info", "页面信息", "获取当前屏幕的UI结构", emptyList()),
             ToolTest("press_key", "模拟按键", "模拟按下音量+", listOf(ToolParameter("key_code", "KEYCODE_VOLUME_UP"))),
+            ToolTest("set_input_text", "文本输入", "在上方测试框输入文本", listOf(ToolParameter("text", "Hello from Operit!"))),
+            ToolTest("click_element", "点击输入框(ID)", "通过为输入框设置的testTag作为ID进行点击，预期成功。", listOf(ToolParameter("resourceId", "tool_tester_input"))),
             ToolTest("tap", "模拟点击", "在(1,1)处点击，预期失败", listOf(ToolParameter("x", "1"), ToolParameter("y", "1"))),
             ToolTest("swipe", "模拟滑动", "在屏幕中央短距离滑动", listOf(ToolParameter("start_x", "500"), ToolParameter("start_y", "1000"), ToolParameter("end_x", "500"), ToolParameter("end_y", "1200")))
         )),

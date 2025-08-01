@@ -47,10 +47,6 @@ fun ConfigurationScreen(
 
         // 初始化免费使用偏好
         val freeUsagePreferences = remember { FreeUsagePreferences(context) }
-        val remainingUsages by freeUsagePreferences.remainingUsagesFlow.collectAsState()
-        val maxDailyUsage = freeUsagePreferences.getMaxDailyUsage()
-
-        // 新增：收集下次可用日期
         val nextAvailableDate by freeUsagePreferences.nextAvailableDateFlow.collectAsState()
         val waitDays = remember(nextAvailableDate) { freeUsagePreferences.getWaitDays() }
 
@@ -117,8 +113,7 @@ fun ConfigurationScreen(
                                         )
                                 }
                         },
-                        remainingUsages = remainingUsages,
-                        maxDailyUsage = maxDailyUsage,
+                        canUseToday = freeUsagePreferences.canUseFreeTier(),
                         nextAvailableDate = nextAvailableDate,
                         waitDays = waitDays
                 )
@@ -276,7 +271,7 @@ fun ConfigurationScreen(
                                                 showFreeUsageDialog = true
                                         },
                                         modifier = Modifier.weight(1f),
-                                        enabled = freeUsagePreferences.canUseFreeTier()
+                                        enabled = true
                                 ) {
                                         Text(
                                                 stringResource(id = R.string.config_use_free),
@@ -310,18 +305,6 @@ fun ConfigurationScreen(
                                                 fontSize = 12.sp
                                         )
                                 }
-                        }
-
-                        // 如果免费试用不可用，显示等待信息
-                        if (!freeUsagePreferences.canUseFreeTier() && waitDays > 0) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                        text = "免费试用需等待 $waitDays 天",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
-                                        textAlign = TextAlign.Center,
-                                        fontSize = 12.sp
-                                )
                         }
 
                         Spacer(modifier = Modifier.height(4.dp))

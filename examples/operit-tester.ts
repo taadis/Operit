@@ -217,7 +217,6 @@ async function runTests(params: { testType?: string } = {}): Promise<void> {
             await testSetInputText(results);
             await testPressKey(results);
             await testSwipe(results);
-            await testCombinedOperation(results);
         }
 
         // Print test summary
@@ -256,12 +255,12 @@ async function runTests(params: { testType?: string } = {}): Promise<void> {
 }
 
 /**
- * Tests the query_problem_library tool
+ * Tests the query_knowledge_library tool
  */
 async function testQueryProblemLibrary(results: TestResults): Promise<void> {
     try {
-        console.log("\nTesting query_problem_library...");
-        const queryResult = await toolCall("query_problem_library", {
+        console.log("\nTesting query_knowledge_library...");
+        const queryResult = await toolCall("query_knowledge_library", {
             query: "how to use OperIT tools"
         });
 
@@ -271,13 +270,13 @@ async function testQueryProblemLibrary(results: TestResults): Promise<void> {
         console.log(`Query result length: ${resultString.length} characters`);
         console.log(`Result preview: ${resultString.substring(0, 100)}...`);
 
-        results["query_problem_library"] = {
+        results["query_knowledge_library"] = {
             success: typeof resultString === 'string' && resultString.length > 0,
             data: resultString
         };
     } catch (err) {
-        console.error("Error testing query_problem_library:", err);
-        results["query_problem_library"] = { success: false, error: String(err) };
+        console.error("Error testing query_knowledge_library:", err);
+        results["query_knowledge_library"] = { success: false, error: String(err) };
     }
 }
 
@@ -1919,118 +1918,6 @@ async function testSwipe(results: TestResults): Promise<void> {
 }
 
 /**
- * Tests the combined_operation tool
- */
-async function testCombinedOperation(results: TestResults): Promise<void> {
-    try {
-        console.log("\nTesting combined_operation...");
-
-        // Get screen dimensions for tap coordinates
-        const deviceResult = await toolCall("device_info");
-        const deviceData = deviceResult as DeviceInfoResultData;
-
-        // Parse resolution into width and height
-        let width = 1080;  // Default fallback
-        let height = 1920;
-
-        if (deviceData.screenResolution) {
-            const match = deviceData.screenResolution.match(/(\d+)x(\d+)/);
-            if (match) {
-                width = parseInt(match[1]);
-                height = parseInt(match[2]);
-            }
-        }
-
-        // Calculate center coordinates
-        const centerX = Math.floor(width / 2);
-        const centerY = Math.floor(height / 2);
-
-        // Test tap combined operation
-        console.log(`Testing combined tap operation at (${centerX}, ${centerY})...`);
-
-        const combinedTapResult = await toolCall("combined_operation", {
-            operation: `tap ${centerX} ${centerY}`,
-            delay_ms: 1500
-        });
-
-        // Validate the result
-        const combinedTapData = combinedTapResult as CombinedOperationResultData;
-        console.log(`Operation summary: ${combinedTapData.operationSummary}`);
-        console.log(`Wait time: ${combinedTapData.waitTime}ms`);
-        console.log(`Package after operation: ${combinedTapData.pageInfo.packageName}`);
-        console.log(`Activity after operation: ${combinedTapData.pageInfo.activityName}`);
-
-        // Check that we got updated UI information
-        const hasUIData = validateUINodeStructure(combinedTapData.pageInfo.uiElements);
-        console.log(`Has valid UI data: ${hasUIData ? "✅" : "❌"}`);
-
-        // Try another type of combined operation - swipe
-        console.log("\nTesting combined swipe operation...");
-
-        const startY = Math.floor(height * 0.7);
-        const endY = Math.floor(height * 0.3);
-
-        const combinedSwipeResult = await toolCall("combined_operation", {
-            operation: `swipe ${centerX} ${startY} ${centerX} ${endY} 500`,
-            delay_ms: 1500
-        });
-
-        // Validate the result
-        const combinedSwipeData = combinedSwipeResult as CombinedOperationResultData;
-        console.log(`Operation summary: ${combinedSwipeData.operationSummary}`);
-        console.log(`Wait time: ${combinedSwipeData.waitTime}ms`);
-
-        // Try a combined click_element operation if we can find an element
-        let clickElementTest: CombinedOperationResultData | undefined = undefined;
-
-        // Look for a clickable element with a resource ID
-        let clickableId: string | undefined = undefined;
-
-        function findClickableWithId(node: SimplifiedUINode): void {
-            if (!node) return;
-
-            if (node.isClickable && node.resourceId && !clickableId) {
-                clickableId = node.resourceId;
-                return;
-            }
-
-            if (node.children && node.children.length > 0) {
-                node.children.forEach(findClickableWithId);
-            }
-        }
-
-        findClickableWithId(combinedSwipeData.pageInfo.uiElements);
-
-        if (clickableId) {
-            console.log(`\nTesting combined click_element operation on ${clickableId}...`);
-
-            const combinedClickResult = await toolCall("combined_operation", {
-                operation: `click_element resourceId ${clickableId}`,
-                delay_ms: 1500
-            });
-
-            const combinedClickData = combinedClickResult as CombinedOperationResultData;
-            console.log(`Operation summary: ${combinedClickData.operationSummary}`);
-            console.log(`Wait time: ${combinedClickData.waitTime}ms`);
-
-            clickElementTest = combinedClickData;
-        }
-
-        results["combined_operation"] = {
-            success: hasUIData,
-            data: {
-                tap: combinedTapData,
-                swipe: combinedSwipeData,
-                clickElement: clickElementTest
-            }
-        };
-    } catch (err) {
-        console.error("Error testing combined_operation:", err);
-        results["combined_operation"] = { success: false, error: String(err) };
-    }
-}
-
-/**
  * Tests the find_element tool
  */
 async function testFindElement(results: TestResults): Promise<void> {
@@ -2202,5 +2089,4 @@ exports.testTap = testTap;
 exports.testSetInputText = testSetInputText;
 exports.testPressKey = testPressKey;
 exports.testSwipe = testSwipe;
-exports.testCombinedOperation = testCombinedOperation;
 exports.testFindElement = testFindElement; 

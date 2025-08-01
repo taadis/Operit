@@ -4,12 +4,12 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.ai.assistance.operit.data.preferences.PromptPreferencesManager.Companion.DEFAULT_CHAT_PROFILE_ID
+import com.ai.assistance.operit.data.preferences.PromptPreferencesManager.Companion.DEFAULT_DESKTOP_PET_PROFILE_ID
+import com.ai.assistance.operit.data.preferences.PromptPreferencesManager.Companion.DEFAULT_VOICE_PROFILE_ID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import com.ai.assistance.operit.data.preferences.PromptPreferencesManager.Companion.DEFAULT_CHAT_PROFILE_ID
-import com.ai.assistance.operit.data.preferences.PromptPreferencesManager.Companion.DEFAULT_VOICE_PROFILE_ID
-import com.ai.assistance.operit.data.preferences.PromptPreferencesManager.Companion.DEFAULT_DESKTOP_PET_PROFILE_ID
 
 // 功能类型枚举
 enum class PromptFunctionType {

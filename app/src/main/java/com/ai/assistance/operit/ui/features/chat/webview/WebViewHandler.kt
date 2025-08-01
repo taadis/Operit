@@ -8,6 +8,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Base64
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.JavascriptInterface
@@ -20,7 +22,11 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.produceState
 import androidx.core.content.FileProvider
+import com.ai.assistance.operit.ui.features.chat.webview.LocalWebServer
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -30,7 +36,30 @@ import java.util.Locale
 /** WebViewHandler - 处理WebView的所有配置和功能 包括安全设置、CORS支持、文件上传下载、缓存控制等 */
 class WebViewHandler(private val context: Context) {
 
+    enum class WebViewMode {
+        COMPUTER, // 模拟桌面浏览器，需要宽视口和缩放
+        WORKSPACE // 用于代码/网页预览，需要自适应屏幕
+    }
+
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
+
+    // 用于覆盖URL加载行为的回调
+    var urlLoadingOverrider: ((view: WebView?, request: WebResourceRequest?) -> Boolean)? = null
+
+    // 用于报告页面加载进度的回调
+    var onProgressChanged: ((progress: Int) -> Unit)? = null
+
+    @Composable
+    fun observeProgress(): State<Int> {
+        return produceState(initialValue = 0) {
+            onProgressChanged = {
+                value = it
+            }
+        }
+    }
+
+    // 用于报告页面标题的回调
+    var onTitleReceived: ((title: String?) -> Unit)? = null
 
     // 通过JavaScript接口处理Blob/Base64数据下载
     private inner class BlobDownloadInterface {
@@ -88,10 +117,20 @@ class WebViewHandler(private val context: Context) {
     }
 
     // 配置WebView的所有设置
-    fun configureWebView(webView: WebView): WebView {
+    fun configureWebView(webView: WebView, mode: WebViewMode): WebView {
         return webView.apply {
+            // 明确设置布局参数，确保WebView填满其父容器
+            layoutParams =
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+
+            // 为支持 backdrop-filter 等高级CSS效果，需要开启硬件加速
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+
             // 配置WebViewClient处理页面加载和错误
-            webViewClient = createWebViewClient()
+            webViewClient = createWebViewClient(mode)
 
             // 配置WebChromeClient处理文件选择等高级功能
             webChromeClient = createWebChromeClient()
@@ -134,9 +173,8 @@ class WebViewHandler(private val context: Context) {
                 // 编码设置
                 defaultTextEncodingName = "UTF-8"
 
-                // 设置用户代理
-                val defaultUserAgent = userAgentString
-                userAgentString = "$defaultUserAgent OperitWebView/1.0"
+                // 设置用户代理，模拟PC版Edge浏览器以请求桌面版网站
+                userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0 OperitWebView/1.0"
             }
 
             // 注入Blob下载辅助JavaScript
@@ -145,12 +183,43 @@ class WebViewHandler(private val context: Context) {
     }
 
     // 创建WebViewClient
-    private fun createWebViewClient(): WebViewClient {
+    private fun createWebViewClient(mode: WebViewMode): WebViewClient {
         return object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 // 注入Blob下载辅助代码
                 view?.let { injectBlobDownloadHelper(it) }
+
+                // 仅在COMPUTER模式下注入JS以强制桌面视口
+                if (mode == WebViewMode.COMPUTER) {
+                    // 仅对外部网站注入JavaScript以强制桌面视口，不对本地桌面页面进行缩放
+                    if (url != null && !url.startsWith("http://localhost:${LocalWebServer.COMPUTER_PORT}")) {
+                        // 注入JavaScript来强制设置视口宽度，以请求桌面版布局
+                        view?.evaluateJavascript(
+                            """
+                        (function() {
+                            var meta = document.querySelector('meta[name="viewport"]');
+                            if (!meta) {
+                                meta = document.createElement('meta');
+                                meta.setAttribute('name', 'viewport');
+                                document.getElementsByTagName('head')[0].appendChild(meta);
+                            }
+                            meta.setAttribute('content', 'width=1024');
+                        })();
+                        """.trimIndent(),
+                            null
+                        )
+                    }
+                }
+            }
+
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): Boolean {
+                // 如果设置了URL加载覆盖器，则使用它
+                return urlLoadingOverrider?.invoke(view, request)
+                    ?: super.shouldOverrideUrlLoading(view, request)
             }
 
             // 处理SSL错误
@@ -205,6 +274,16 @@ class WebViewHandler(private val context: Context) {
     // 创建WebChromeClient
     private fun createWebChromeClient(): WebChromeClient {
         return object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                super.onProgressChanged(view, newProgress)
+                onProgressChanged?.invoke(newProgress)
+            }
+
+            override fun onReceivedTitle(view: WebView?, title: String?) {
+                super.onReceivedTitle(view, title)
+                onTitleReceived?.invoke(title)
+            }
+
             // 处理文件选择
             override fun onShowFileChooser(
                     webView: WebView?,

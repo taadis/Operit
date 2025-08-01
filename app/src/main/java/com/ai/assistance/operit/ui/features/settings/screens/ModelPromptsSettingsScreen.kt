@@ -35,7 +35,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun ModelPromptsSettingsScreen(
         onBackPressed: () -> Unit = {},
-        onNavigateToFunctionalPrompts: () -> Unit = {}
+        onNavigateToFunctionalPrompts: () -> Unit = {},
+        onNavigateToMarket: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val apiPreferences = remember { ApiPreferences(context) }
@@ -171,29 +172,42 @@ fun ModelPromptsSettingsScreen(
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
-                            
-                            // 新建按钮 - 更小的尺寸
-                            OutlinedButton(
-                                onClick = { showAddProfileDialog = true },
-                                shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.primary),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                modifier = Modifier.height(28.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary
-                                )
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Text(
-                                    stringResource(R.string.create_new),
-                                    fontSize = 12.sp,
-                                    style = MaterialTheme.typography.labelSmall
-                                )
+                                TextButton(
+                                    onClick = onNavigateToMarket,
+                                    modifier = Modifier.height(28.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text("提示词市场", fontSize = 12.sp)
+                                }
+
+                                // 新建按钮 - 更小的尺寸
+                                OutlinedButton(
+                                    onClick = { showAddProfileDialog = true },
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.primary),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(28.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Text(
+                                        stringResource(R.string.create_new),
+                                        fontSize = 12.sp,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
                             }
                         }
                         
@@ -239,31 +253,6 @@ fun ModelPromptsSettingsScreen(
                                     )
                                 }
                             }
-                        }
-                        
-                        Divider(
-                                modifier = Modifier.padding(vertical = 8.dp),
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                        )
-
-                        Row(
-                                modifier =
-                                        Modifier.fillMaxWidth()
-                                                .clickable { onNavigateToFunctionalPrompts() }
-                                                .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                                Text(
-                                        text = stringResource(R.string.manage_all_prompts),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium
-                                )
-                                Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                        contentDescription = stringResource(R.string.manage_all_prompts),
-                                        tint = MaterialTheme.colorScheme.primary
-                                )
                         }
                         
                         // 操作按钮

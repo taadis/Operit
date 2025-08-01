@@ -75,71 +75,15 @@ class DemoStateManager(private val context: Context, private val coroutineScope:
             registerStateChangeListeners()
 
             // 刷新所有权限状态
-            refreshStatus()
+            refreshStatusAsync()
         }
     }
 
     /** Refresh permissions and component status */
     fun refreshStatus() {
-        _uiState.update { currentState -> currentState.copy(isRefreshing = mutableStateOf(true)) }
-
-        coroutineScope.launch {
-            try {
-                // Refresh permissions and status
-                TermuxDemoUtil.refreshPermissionsAndStatus(
-                        context = context,
-                        updateShizukuInstalled = { _uiState.value.isShizukuInstalled.value = it },
-                        updateShizukuRunning = { _uiState.value.isShizukuRunning.value = it },
-                        updateShizukuPermission = {
-                            _uiState.value.hasShizukuPermission.value = it
-                        },
-                        updateTermuxInstalled = { _uiState.value.isTermuxInstalled.value = it },
-                        updateTermuxRunning = { isTermuxRunning.value = it },
-                        updateStoragePermission = {
-                            _uiState.value.hasStoragePermission.value = it
-                        },
-                        updateLocationPermission = {
-                            _uiState.value.hasLocationPermission.value = it
-                        },
-                        updateOverlayPermission = {
-                            _uiState.value.hasOverlayPermission.value = it
-                        },
-                        updateBatteryOptimizationExemption = {
-                            _uiState.value.hasBatteryOptimizationExemption.value = it
-                        },
-                        updateAccessibilityServiceEnabled = {
-                            _uiState.value.hasAccessibilityServiceEnabled.value = it
-                        }
-                )
-
-                // Check Shizuku API_V23 permission
-                if (_uiState.value.isShizukuInstalled.value && _uiState.value.isShizukuRunning.value
-                ) {
-                    _uiState.value.hasShizukuPermission.value =
-                            ShizukuAuthorizer.hasShizukuPermission()
-
-                    if (!_uiState.value.hasShizukuPermission.value) {
-                        Log.d(TAG, "缺少Shizuku API_V23权限，显示Shizuku向导卡片")
-                        _uiState.value.showShizukuWizard.value = true
-                    }
-                } else {
-                    _uiState.value.hasShizukuPermission.value = false
-                    _uiState.value.showShizukuWizard.value = true
-                }
-
-                // Check Termux authorization status
-                checkTermuxAuthState()
-
-                // Check if we're still refreshing to add a small delay for visibility
-                delay(300)
-            } catch (e: Exception) {
-                Log.e(TAG, "刷新权限状态时出错: ${e.message}", e)
-            } finally {
-                _uiState.update { currentState ->
-                    currentState.copy(isRefreshing = mutableStateOf(false))
-                }
-            }
-        }
+       coroutineScope.launch {
+           refreshStatusAsync()
+       }
     }
 
     /** Update root status */
@@ -335,6 +279,14 @@ class DemoStateManager(private val context: Context, private val coroutineScope:
         }
     }
 
+    fun toggleAccessibilityWizard() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                showAccessibilityWizard = mutableStateOf(!currentState.showAccessibilityWizard.value)
+            )
+        }
+    }
+
     fun toggleAdbCommandExecutor() {
         _uiState.update { currentState ->
             currentState.copy(
@@ -420,6 +372,9 @@ class DemoStateManager(private val context: Context, private val coroutineScope:
                     updateOverlayPermission = { _uiState.value.hasOverlayPermission.value = it },
                     updateBatteryOptimizationExemption = {
                         _uiState.value.hasBatteryOptimizationExemption.value = it
+                    },
+                    updateAccessibilityProviderInstalled = {
+                        _uiState.value.isAccessibilityProviderInstalled.value = it
                     },
                     updateAccessibilityServiceEnabled = {
                         _uiState.value.hasAccessibilityServiceEnabled.value = it
@@ -554,6 +509,7 @@ data class DemoScreenState(
         val hasOverlayPermission: MutableState<Boolean> = mutableStateOf(false),
         val hasBatteryOptimizationExemption: MutableState<Boolean> = mutableStateOf(false),
         val hasAccessibilityServiceEnabled: MutableState<Boolean> = mutableStateOf(false),
+        val isAccessibilityProviderInstalled: MutableState<Boolean> = mutableStateOf(false),
         val hasLocationPermission: MutableState<Boolean> = mutableStateOf(false),
         val isDeviceRooted: MutableState<Boolean> = mutableStateOf(false),
         val hasRootAccess: MutableState<Boolean> = mutableStateOf(false),
@@ -568,6 +524,7 @@ data class DemoScreenState(
         val showShizukuWizard: MutableState<Boolean> = mutableStateOf(false),
         val showTermuxWizard: MutableState<Boolean> = mutableStateOf(false),
         val showRootWizard: MutableState<Boolean> = mutableStateOf(false),
+        val showAccessibilityWizard: MutableState<Boolean> = mutableStateOf(false),
         val showResultDialogState: MutableState<Boolean> = mutableStateOf(false),
 
         // Command execution

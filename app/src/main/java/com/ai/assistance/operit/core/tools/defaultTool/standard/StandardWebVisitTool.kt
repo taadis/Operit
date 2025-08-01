@@ -13,16 +13,19 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.LinearLayout
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -411,331 +414,330 @@ class StandardWebVisitTool(private val context: Context) : ToolExecutor {
         }
 
         MaterialTheme {
-            Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background.copy(alpha = 0.95f)
+            Box(
+                    modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)),
+                    contentAlignment = Alignment.Center
             ) {
-                Column(
-                        modifier = Modifier.fillMaxSize().padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                Card(
+                        modifier =
+                                Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.9f),
+                        shape = RoundedCornerShape(16.dp)
                 ) {
-                    // Header
-                    Text(
-                            text = "网页访问中",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    // URL info
-                    Box(
-                            modifier =
-                                    Modifier.fillMaxWidth()
-                                            .background(
-                                                    color =
-                                                            MaterialTheme.colorScheme
-                                                                    .primaryContainer,
-                                                    shape = RoundedCornerShape(8.dp)
-                                            )
-                                            .padding(16.dp)
+                    Column(
+                            modifier = Modifier.fillMaxSize().padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Column {
-                            Text(
-                                    text = "访问网址:",
-                                    fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
+                        // Header
+                        Text(
+                                text = "网页访问中",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                        )
 
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                    text = currentUrl.value,
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // 状态文本根据当前状态动态变化
-                            val statusText =
-                                    when {
-                                        !pageLoaded.value -> "正在加载页面..."
-                                        isLoading.value -> "等待页面完全加载..."
-                                        autoCountdownActive.value ->
-                                                "正在提取内容，${autoCountdownSeconds.value}秒后自动继续..."
-                                        hasExtractedContent.value -> "内容已提取，等待手动继续..."
-                                        else -> "页面已加载，等待提取内容..."
-                                    }
-
-                            Text(
-                                    text = statusText,
-                                    fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-
-                            if (pageTitle.value.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(8.dp))
+                        // URL info
+                        Box(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .border(
+                                                        width = 1.dp,
+                                                        color = MaterialTheme.colorScheme.outline,
+                                                        shape = RoundedCornerShape(8.dp)
+                                                )
+                                                .padding(16.dp)
+                        ) {
+                            Column {
                                 Text(
-                                        text = "页面标题: ${pageTitle.value}",
-                                        fontSize = 14.sp,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        text = "访问网址:",
+                                        fontSize = 16.sp
                                 )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                        text = currentUrl.value,
+                                        fontSize = 14.sp,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // 状态文本根据当前状态动态变化
+                                val statusText =
+                                        when {
+                                            !pageLoaded.value -> "正在加载页面..."
+                                            isLoading.value -> "等待页面完全加载..."
+                                            autoCountdownActive.value ->
+                                                    "正在提取内容，${autoCountdownSeconds.value}秒后自动继续..."
+                                            hasExtractedContent.value -> "内容已提取，等待手动继续..."
+                                            else -> "页面已加载，等待提取内容..."
+                                        }
+
+                                Text(
+                                        text = statusText,
+                                        fontSize = 16.sp
+                                )
+
+                                if (pageTitle.value.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                            text = "页面标题: ${pageTitle.value}",
+                                            fontSize = 14.sp
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    // WebView
-                    AndroidView(
-                            factory = { context ->
-                                createOptimizedWebView(context, url) { webView ->
-                                    // Register created WebView instance for later cleanup
-                                    onWebViewCreated(webView)
+                        // WebView
+                        AndroidView(
+                                factory = { context ->
+                                    createOptimizedWebView(context, url) { webView ->
+                                        // Register created WebView instance for later cleanup
+                                        onWebViewCreated(webView)
 
-                                    // Configure WebViewClient
-                                    webView.webViewClient =
-                                            object : WebViewClient() {
-                                                // 追踪上一个URL，用于检测重定向
-                                                private var lastLoadedUrl: String = ""
+                                        // Configure WebViewClient
+                                        webView.webViewClient =
+                                                object : WebViewClient() {
+                                                    // 追踪上一个URL，用于检测重定向
+                                                    private var lastLoadedUrl: String = ""
 
-                                                override fun onPageFinished(
-                                                        view: WebView,
-                                                        loadedUrl: String
-                                                ) {
-                                                    super.onPageFinished(view, loadedUrl)
-                                                    Log.d(TAG, "Loaded URL: $loadedUrl")
+                                                    override fun onPageFinished(
+                                                            view: WebView,
+                                                            loadedUrl: String
+                                                    ) {
+                                                        super.onPageFinished(view, loadedUrl)
+                                                        Log.d(TAG, "Loaded URL: $loadedUrl")
 
-                                                    // 检查是否是重定向或新页面
-                                                    val isNewPage = lastLoadedUrl != loadedUrl
-                                                    lastLoadedUrl = loadedUrl
+                                                        // 检查是否是重定向或新页面
+                                                        val isNewPage = lastLoadedUrl != loadedUrl
+                                                        lastLoadedUrl = loadedUrl
 
-                                                    currentUrl.value = loadedUrl
-                                                    pageTitle.value = view.title ?: ""
-                                                    pageLoaded.value = true
+                                                        currentUrl.value = loadedUrl
+                                                        pageTitle.value = view.title ?: ""
+                                                        pageLoaded.value = true
 
-                                                    // 如果是重定向或新页面，重置提取状态
-                                                    if (isNewPage) {
-                                                        Log.d(TAG, "页面发生重定向或加载了新页面，重置提取状态")
-                                                        isLoading.value = true
-                                                        hasExtractedContent.value = false
-                                                        pageContent.value = ""
-                                                        // 重置自动状态
-                                                        autoCountdownActive.value = false
-                                                        autoModeEnabled.value = true
-                                                    }
+                                                        // 如果是重定向或新页面，重置提取状态
+                                                        if (isNewPage) {
+                                                            Log.d(TAG, "页面发生重定向或加载了新页面，重置提取状态")
+                                                            isLoading.value = true
+                                                            hasExtractedContent.value = false
+                                                            pageContent.value = ""
+                                                            // 重置自动状态
+                                                            autoCountdownActive.value = false
+                                                            autoModeEnabled.value = true
+                                                        }
 
-                                                    // 页面加载完成后，延迟自动提取内容
-                                                    if (autoModeEnabled.value) {
-                                                        Handler(Looper.getMainLooper())
-                                                                .postDelayed(
-                                                                        {
-                                                                            if (!view.isAttachedToWindow
-                                                                            ) {
+                                                        // 页面加载完成后，延迟自动提取内容
+                                                        if (autoModeEnabled.value) {
+                                                            Handler(Looper.getMainLooper())
+                                                                    .postDelayed(
+                                                                            {
+                                                                                if (!view.isAttachedToWindow
+                                                                                ) {
+                                                                                    Log.d(
+                                                                                            TAG,
+                                                                                            "WebView不再附加到窗口，跳过提取"
+                                                                                    )
+                                                                                    return@postDelayed
+                                                                                }
+                                                                                
+                                                                                // 直接提取内容，不先滚动
                                                                                 Log.d(
                                                                                         TAG,
-                                                                                        "WebView不再附加到窗口，跳过提取"
+                                                                                        "页面加载完成，开始提取内容"
                                                                                 )
-                                                                                return@postDelayed
-                                                                            }
-                                                                            
-                                                                            // 直接提取内容，不先滚动
-                                                                            Log.d(
-                                                                                    TAG,
-                                                                                    "页面加载完成，开始提取内容"
-                                                                            )
-                                                                            
-                                                                            if (!hasExtractedContent.value && 
-                                                                                    autoModeEnabled.value
-                                                                            ) {
-                                                                                isLoading.value = true
                                                                                 
-                                                                                extractPageContent(
-                                                                                        view
-                                                                                ) { content ->
-                                                                                    isLoading.value = false
-                                                                                    hasExtractedContent.value = true
-                                                                                    pageContent.value = content
+                                                                                if (!hasExtractedContent.value && 
+                                                                                        autoModeEnabled.value
+                                                                                ) {
+                                                                                    isLoading.value = true
                                                                                     
-                                                                                    // 如果仍处于自动模式，自动开始倒计时
-                                                                                    if (autoModeEnabled.value) {
-                                                                                        autoCountdownActive.value = true
+                                                                                    extractPageContent(
+                                                                                            view
+                                                                                    ) { content ->
+                                                                                        isLoading.value = false
+                                                                                        hasExtractedContent.value = true
+                                                                                        pageContent.value = content
                                                                                         
-                                                                                        // 在开始倒计时的同时滚动页面
-                                                                                        Log.d(TAG, "开始倒计时，同时滚动页面")
-                                                                                        autoScrollToBottom(view) {
-                                                                                            Log.d(TAG, "页面滚动完成")
+                                                                                        // 如果仍处于自动模式，自动开始倒计时
+                                                                                        if (autoModeEnabled.value) {
+                                                                                            autoCountdownActive.value = true
+                                                                                            
+                                                                                            // 在开始倒计时的同时滚动页面
+                                                                                            Log.d(TAG, "开始倒计时，同时滚动页面")
+                                                                                            autoScrollToBottom(view) {
+                                                                                                Log.d(TAG, "页面滚动完成")
+                                                                                            }
                                                                                         }
                                                                                     }
                                                                                 }
-                                                                            }
-                                                                        },
-                                                                        800
-                                                                ) // 缩短延迟到800毫秒
+                                                                            },
+                                                                            800
+                                                                    ) // 缩短延迟到800毫秒
+                                                        }
+                                                    }
+
+                                                    override fun shouldOverrideUrlLoading(
+                                                            view: WebView,
+                                                            request: WebResourceRequest
+                                                    ): Boolean {
+                                                        // 记录URL变化，但允许所有导航
+                                                        val newUrl = request.url.toString()
+                                                        Log.d(TAG, "URL变化: $newUrl")
+                                                        currentUrl.value = newUrl
+
+                                                        // 设置页面正在加载状态
+                                                        isLoading.value = true
+                                                        pageLoaded.value = false
+
+                                                        return false // 允许WebView处理URL加载
+                                                    }
+
+                                                    override fun onReceivedError(
+                                                            view: WebView,
+                                                            errorCode: Int,
+                                                            description: String,
+                                                            failingUrl: String
+                                                    ) {
+                                                        Log.e(
+                                                                TAG,
+                                                                "WebView error: $errorCode - $description"
+                                                        )
+                                                        super.onReceivedError(
+                                                                view,
+                                                                errorCode,
+                                                                description,
+                                                                failingUrl
+                                                        )
                                                     }
                                                 }
 
-                                                override fun shouldOverrideUrlLoading(
-                                                        view: WebView,
-                                                        request: WebResourceRequest
-                                                ): Boolean {
-                                                    // 记录URL变化，但允许所有导航
-                                                    val newUrl = request.url.toString()
-                                                    Log.d(TAG, "URL变化: $newUrl")
-                                                    currentUrl.value = newUrl
-
-                                                    // 设置页面正在加载状态
-                                                    isLoading.value = true
-                                                    pageLoaded.value = false
-
-                                                    return false // 允许WebView处理URL加载
-                                                }
-
-                                                override fun onReceivedError(
-                                                        view: WebView,
-                                                        errorCode: Int,
-                                                        description: String,
-                                                        failingUrl: String
-                                                ) {
-                                                    Log.e(
-                                                            TAG,
-                                                            "WebView error: $errorCode - $description"
-                                                    )
-                                                    super.onReceivedError(
-                                                            view,
-                                                            errorCode,
-                                                            description,
-                                                            failingUrl
-                                                    )
-                                                }
-                                            }
-
-                                    return@createOptimizedWebView webView
+                                        return@createOptimizedWebView webView
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().weight(1f),
+                                update = { webView ->
+                                    // 存储最新的WebView引用
+                                    webViewReference = webView
+                                    // 只更新重要属性以避免重新创建
+                                    webView.requestFocus()
                                 }
-                            },
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                            update = { webView ->
-                                // 存储最新的WebView引用
-                                webViewReference = webView
-                                // 只更新重要属性以避免重新创建
-                                webView.requestFocus()
-                            }
-                    )
+                        )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    // 按钮区域 - 根据当前状态显示不同按钮
-                    Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // 左侧按钮 - 根据状态变化
-                        Button(
-                                onClick = {
-                                    if (autoCountdownActive.value) {
-                                        // 如果正在倒计时，则取消倒计时
-                                        autoCountdownActive.value = false
-                                    } else if (pageLoaded.value &&
-                                                    !hasExtractedContent.value &&
-                                                    autoModeEnabled.value
-                                    ) {
-                                        // 如果页面已加载但未提取内容，且处于自动模式，则切换到手动模式
-                                        autoModeEnabled.value = false
-                                    } else {
-                                        // 其他情况为取消操作
-                                        onContentExtracted("操作已取消")
-                                    }
-                                },
-                                colors =
-                                        ButtonDefaults.buttonColors(
-                                                containerColor = MaterialTheme.colorScheme.error
-                                        )
+                        // 按钮区域 - 根据当前状态显示不同按钮
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                    when {
-                                        autoCountdownActive.value -> "取消倒计时"
-                                        pageLoaded.value &&
-                                                !hasExtractedContent.value &&
-                                                autoModeEnabled.value -> "取消自动"
-                                        else -> "取消"
-                                    }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // 右侧按钮 - 根据状态变化
-                        Button(
-                                onClick = {
-                                    if (autoCountdownActive.value) {
-                                        // 如果正在倒计时，立即继续
-                                        autoCountdownActive.value = false
-                                        if (pageContent.value.isNotEmpty()) {
-                                            onContentExtracted(pageContent.value)
+                            // 左侧按钮 - 根据状态变化
+                            OutlinedButton(
+                                    onClick = {
+                                        if (autoCountdownActive.value) {
+                                            // 如果正在倒计时，则取消倒计时
+                                            autoCountdownActive.value = false
+                                        } else if (pageLoaded.value &&
+                                                        !hasExtractedContent.value &&
+                                                        autoModeEnabled.value
+                                        ) {
+                                            // 如果页面已加载但未提取内容，且处于自动模式，则切换到手动模式
+                                            autoModeEnabled.value = false
+                                        } else {
+                                            // 其他情况为取消操作
+                                            onContentExtracted("操作已取消")
                                         }
-                                    } else if (hasExtractedContent.value) {
-                                        // 如果已提取内容，直接继续
-                                        onContentExtracted(pageContent.value)
-                                    } else {
-                                        // 否则提取内容
-                                        webViewReference?.let { webView ->
-                                            // 显示正在提取提示
-                                            isLoading.value = true
+                                    }
+                            ) {
+                                Text(
+                                        when {
+                                            autoCountdownActive.value -> "取消倒计时"
+                                            pageLoaded.value &&
+                                                    !hasExtractedContent.value &&
+                                                    autoModeEnabled.value -> "取消自动"
+                                            else -> "取消"
+                                        }
+                                )
+                            }
 
-                                            Log.d(TAG, "触发内容提取，当前页面: ${currentUrl.value}")
+                            Spacer(modifier = Modifier.width(8.dp))
 
-                                            extractPageContent(webView) { content ->
-                                                isLoading.value = false
-                                                hasExtractedContent.value = true
-                                                pageContent.value = content
+                            // 右侧按钮 - 根据状态变化
+                            Button(
+                                    onClick = {
+                                        if (autoCountdownActive.value) {
+                                            // 如果正在倒计时，立即继续
+                                            autoCountdownActive.value = false
+                                            if (pageContent.value.isNotEmpty()) {
+                                                onContentExtracted(pageContent.value)
+                                            }
+                                        } else if (hasExtractedContent.value) {
+                                            // 如果已提取内容，直接继续
+                                            onContentExtracted(pageContent.value)
+                                        } else {
+                                            // 否则提取内容
+                                            webViewReference?.let { webView ->
+                                                // 显示正在提取提示
+                                                isLoading.value = true
 
-                                                // 如果是自动模式，开始倒计时
-                                                if (autoModeEnabled.value) {
-                                                    autoCountdownActive.value = true
+                                                Log.d(TAG, "触发内容提取，当前页面: ${currentUrl.value}")
+
+                                                extractPageContent(webView) { content ->
+                                                    isLoading.value = false
+                                                    hasExtractedContent.value = true
+                                                    pageContent.value = content
+
+                                                    // 如果是自动模式，开始倒计时
+                                                    if (autoModeEnabled.value) {
+                                                        autoCountdownActive.value = true
+                                                    }
                                                 }
                                             }
+                                                    ?: onContentExtracted("WebView不可用，无法提取内容。")
                                         }
-                                                ?: onContentExtracted("WebView不可用，无法提取内容。")
-                                    }
-                                },
-                                enabled = pageLoaded.value,
-                                colors =
-                                        ButtonDefaults.buttonColors(
-                                                containerColor = MaterialTheme.colorScheme.primary
-                                        ),
-                                modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                    when {
-                                        autoCountdownActive.value ->
-                                                "立即继续 (${autoCountdownSeconds.value}s)"
-                                        hasExtractedContent.value -> "继续处理"
-                                        !autoModeEnabled.value -> "手动提取"
-                                        else -> "提取内容" // 移除"(自动)"后缀，因为这是默认行为
-                                    }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // 帮助文本
-                    Text(
-                            text =
-                                    when {
-                                        !pageLoaded.value -> "正在加载页面，请稍候..."
-                                        autoCountdownActive.value -> "正在自动倒计时，点击\"取消倒计时\"可停止自动处理"
-                                        !hasExtractedContent.value && autoModeEnabled.value ->
-                                                "点击\"取消自动\"可切换到手动模式"
-                                        !hasExtractedContent.value && !autoModeEnabled.value ->
-                                                "已切换到手动模式，点击\"手动提取\"继续"
-                                        else -> "内容已提取完成，点击\"继续处理\"继续"
                                     },
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                    )
+                                    enabled = pageLoaded.value,
+                                    colors =
+                                            ButtonDefaults.buttonColors(
+                                                    containerColor = MaterialTheme.colorScheme.primary
+                                            ),
+                                    modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                        when {
+                                            autoCountdownActive.value ->
+                                                    "立即继续 (${autoCountdownSeconds.value}s)"
+                                            hasExtractedContent.value -> "继续处理"
+                                            !autoModeEnabled.value -> "手动提取"
+                                            else -> "提取内容" // 移除"(自动)"后缀，因为这是默认行为
+                                        }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 帮助文本
+                        Text(
+                                text =
+                                        when {
+                                            !pageLoaded.value -> "正在加载页面，请稍候..."
+                                            autoCountdownActive.value -> "正在自动倒计时，点击\"取消倒计时\"可停止自动处理"
+                                            !hasExtractedContent.value && autoModeEnabled.value ->
+                                                    "点击\"取消自动\"可切换到手动模式"
+                                            !hasExtractedContent.value && !autoModeEnabled.value ->
+                                                    "已切换到手动模式，点击\"手动提取\"继续"
+                                            else -> "内容已提取完成，点击\"继续处理\"继续"
+                                        },
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
                 }
             }
         }

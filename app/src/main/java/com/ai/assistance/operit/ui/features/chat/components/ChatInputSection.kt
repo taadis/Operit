@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -37,9 +39,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.data.model.AttachmentInfo
+import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.ui.common.animations.SimpleAnimatedVisibility
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.floating.FloatingMode
+import com.ai.assistance.operit.util.ChatUtils
 
 @Composable
 fun ChatInputSection(
@@ -49,8 +53,7 @@ fun ChatInputSection(
         onSendMessage: () -> Unit,
         onCancelMessage: () -> Unit,
         isLoading: Boolean,
-        isProcessingInput: Boolean = false,
-        inputProcessingMessage: String = "",
+        inputState: InputProcessingState = InputProcessingState.Idle,
         allowTextInputWhileProcessing: Boolean = false,
         onAttachmentRequest: (String) -> Unit = {},
         attachments: List<AttachmentInfo> = emptyList(),
@@ -59,7 +62,6 @@ fun ChatInputSection(
         onAttachScreenContent: () -> Unit = {},
         onAttachNotifications: () -> Unit = {},
         onAttachLocation: () -> Unit = {},
-        onAttachProblemMemory: (String, String) -> Unit = { _, _ -> },
         hasBackgroundImage: Boolean = false,
         modifier: Modifier = Modifier,
         externalAttachmentPanelState: Boolean? = null,
@@ -71,7 +73,28 @@ fun ChatInputSection(
         val colorScheme = MaterialTheme.colorScheme
         val typography = MaterialTheme.typography
 
-        val isProcessing = isLoading || isProcessingInput
+        val isProcessing = isLoading
+
+        // Token limit calculation
+        val currentWindowSize by actualViewModel.currentWindowSize.collectAsState()
+        val maxWindowSizeInK by actualViewModel.maxWindowSizeInK.collectAsState()
+        val maxTokens = (maxWindowSizeInK * 1024).toInt()
+        val userMessageTokens = remember(userMessage) { ChatUtils.estimateTokenCount(userMessage) }
+
+        val isOverTokenLimit =
+                if (maxTokens > 0) {
+                    (userMessageTokens + currentWindowSize) > maxTokens
+                } else {
+                    false
+                }
+
+        val canSendMessage = userMessage.isNotBlank() || attachments.isNotEmpty()
+        val sendButtonEnabled =
+                when {
+                    isProcessing -> true // Cancel button
+                    canSendMessage -> !isOverTokenLimit // Send button
+                    else -> true // Mic button
+                }
 
         val voicePermissionLauncher =
                 rememberLauncherForActivityResult(
@@ -116,25 +139,21 @@ fun ChatInputSection(
         ) {
                 Column {
                         // Input processing indicator
-                        SimpleAnimatedVisibility(visible = isProcessingInput) {
-                                val progressColor =
-                                        when {
-                                                inputProcessingMessage.contains("工具执行后") ->
-                                                        MaterialTheme.colorScheme.tertiary.copy(
-                                                                alpha = 0.8f
-                                                        )
-                                                inputProcessingMessage.contains("Connecting") ||
-                                                        inputProcessingMessage.contains("连接") ->
-                                                        MaterialTheme.colorScheme.tertiary
-                                                inputProcessingMessage.contains("Receiving") ||
-                                                        inputProcessingMessage.contains("响应") ->
-                                                        MaterialTheme.colorScheme.secondary
-                                                else -> MaterialTheme.colorScheme.primary
-                                        }
+                        SimpleAnimatedVisibility(visible = inputState !is InputProcessingState.Idle && inputState !is InputProcessingState.Completed) {
+                                val (progressColor, message) = when (inputState) {
+                                    is InputProcessingState.Connecting -> MaterialTheme.colorScheme.tertiary to inputState.message
+                                    is InputProcessingState.ExecutingTool -> MaterialTheme.colorScheme.secondary to "正在执行工具: ${inputState.toolName}"
+                                    is InputProcessingState.Processing -> MaterialTheme.colorScheme.primary to inputState.message
+                                    is InputProcessingState.ProcessingToolResult -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f) to "正在处理工具结果: ${inputState.toolName}"
+                                    is InputProcessingState.Receiving -> MaterialTheme.colorScheme.secondary to inputState.message
+                                    else -> MaterialTheme.colorScheme.primary to ""
+                                }
 
-                                val progressValue =
-                                        if (inputProcessingMessage.contains("准备")) 0.3f
-                                        else if (inputProcessingMessage.contains("连接")) 0.6f else 1f
+                                val progressValue = when (inputState) {
+                                    is InputProcessingState.Processing -> 0.3f
+                                    is InputProcessingState.Connecting -> 0.6f
+                                    else -> 1f
+                                }
 
                                 SimpleLinearProgressIndicator(
                                         progress = progressValue,
@@ -142,7 +161,7 @@ fun ChatInputSection(
                                         color = progressColor
                                 )
 
-                                if (inputProcessingMessage.isNotBlank()) {
+                                if (message.isNotBlank()) {
                                         Row(
                                                 modifier =
                                                         Modifier.fillMaxWidth()
@@ -153,7 +172,7 @@ fun ChatInputSection(
                                                 verticalAlignment = Alignment.CenterVertically
                                         ) {
                                                 Text(
-                                                        text = inputProcessingMessage,
+                                                        text = message,
                                                         style = MaterialTheme.typography.bodySmall,
                                                         color =
                                                                 MaterialTheme.colorScheme.onSurface
@@ -276,12 +295,19 @@ fun ChatInputSection(
                                                                                 MaterialTheme
                                                                                         .colorScheme
                                                                                         .error
-                                                                        userMessage.isNotBlank() ||
-                                                                                attachments
-                                                                                        .isNotEmpty() ->
+                                                                        canSendMessage ->
+                                                                                if (sendButtonEnabled)
                                                                                 MaterialTheme
                                                                                         .colorScheme
                                                                                         .primary
+                                                                                else
+                                                                                        MaterialTheme
+                                                                                                .colorScheme
+                                                                                                .onSurface
+                                                                                                .copy(
+                                                                                                        alpha =
+                                                                                                                0.12f
+                                                                                                )
                                                                         else ->
                                                                                 MaterialTheme
                                                                                         .colorScheme
@@ -289,15 +315,12 @@ fun ChatInputSection(
                                                                 }
                                                         )
                                                         .clickable(
-                                                                enabled = true, // 始终启用，因为现在它也是语音入口
+                                                                enabled = sendButtonEnabled,
                                                                 onClick = {
                                                                         when {
                                                                                 isProcessing ->
                                                                                         onCancelMessage()
-                                                                                userMessage
-                                                                                        .isNotBlank() ||
-                                                                                        attachments
-                                                                                                .isNotEmpty() -> {
+                                                                                canSendMessage -> {
                                                                                         onSendMessage()
                                                                                         // 发送消息后关闭附件面板
                                                                                         setShowAttachmentPanel(
@@ -305,42 +328,62 @@ fun ChatInputSection(
                                                                                         )
                                                                                 }
                                                                                 else -> {
-                                                                                        actualViewModel
-                                                                                                .launchFullscreenVoiceModeWithPermissionCheck(
-                                                                                                        voicePermissionLauncher,
-                                                                                                        colorScheme,
-                                                                                                        typography
-                                                                                                )
+                                                                                        actualViewModel.onFloatingButtonClick(
+                                                                                                FloatingMode.FULLSCREEN,
+                                                                                                voicePermissionLauncher,
+                                                                                                colorScheme,
+                                                                                                typography
+                                                                                        )
                                                                                 }
                                                                         }
                                                                 }
                                                         ),
                                         contentAlignment = Alignment.Center
                                 ) {
+                                        val iconTint =
+                                                when {
+                                                        isProcessing -> MaterialTheme.colorScheme.onError
+                                                        canSendMessage ->
+                                                                if (sendButtonEnabled)
+                                                                        MaterialTheme.colorScheme
+                                                                                .onPrimary
+                                                                else
+                                                                        MaterialTheme.colorScheme
+                                                                                .onSurface
+                                                                                .copy(alpha = 0.38f)
+                                                        else -> MaterialTheme.colorScheme.onPrimary
+                                                }
                                         Icon(
                                                 imageVector =
                                                         when {
                                                                 isProcessing -> Icons.Default.Close
-                                                                userMessage.isNotBlank() ||
-                                                                        attachments.isNotEmpty() ->
-                                                                        Icons.Default.Send
+                                                                canSendMessage -> Icons.Default.Send
                                                                 else -> Icons.Default.Mic
                                                         },
                                                 contentDescription =
                                                         when {
                                                                 isProcessing -> "取消"
-                                                                userMessage.isNotBlank() ||
-                                                                        attachments.isNotEmpty() ->
-                                                                        "发送"
+                                                                canSendMessage -> "发送"
                                                                 else -> "语音输入"
                                                         },
-                                                tint =
-                                                        if (isProcessing)
-                                                                MaterialTheme.colorScheme.onError
-                                                        else MaterialTheme.colorScheme.onPrimary,
+                                                tint = iconTint,
                                                 modifier = Modifier.size(22.dp)
                                         )
                                 }
+                        }
+
+                        // Token limit warning
+                        if (isOverTokenLimit && canSendMessage) {
+                                Text(
+                                        text =
+                                                "已超出最大Token限制 (${userMessageTokens + currentWindowSize} / $maxTokens)",
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier =
+                                                Modifier.fillMaxWidth()
+                                                        .padding(horizontal = 16.dp)
+                                                        .padding(bottom = 4.dp)
+                                )
                         }
 
                         // 附件选择面板 - 移动到输入框下方
@@ -357,7 +400,6 @@ fun ChatInputSection(
                                 onAttachScreenContent = onAttachScreenContent,
                                 onAttachNotifications = onAttachNotifications,
                                 onAttachLocation = onAttachLocation,
-                                onAttachProblemMemory = onAttachProblemMemory,
                                 userQuery = userMessage,
                                 onDismiss = { setShowAttachmentPanel(false) }
                         )

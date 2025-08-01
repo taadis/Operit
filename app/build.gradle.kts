@@ -1,9 +1,10 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    kotlin("plugin.serialization") version "1.9.22"
-    id("kotlin-kapt")
-    id("kotlin-parcelize")
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kotlin.kapt)
+    alias(libs.plugins.kotlin.parcelize)
+    id("io.objectbox")
 }
 
 android {
@@ -14,18 +15,20 @@ android {
         applicationId = "com.ai.assistance.operit"
         minSdk = 26
         targetSdk = 34
-        versionCode = 16
-        versionName = "1.2.0"
+        versionCode = 19
+        versionName = "1.2.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
         
-        // ndk {
-        //     // 只使用armeabi-v7a架构，因为只有这个架构有libsherpa-ncnn-jni.so库
-        //     abiFilters.add("armeabi-v7a")
-        // }
+        ndk {
+            // Explicitly specify the ABIs to support. This ensures that native libraries
+            // for both 32-bit and 64-bit ARM devices are included in the APK,
+            // resolving conflicts between dependencies with different native library sets.
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
+        }
     }
 
     buildTypes {
@@ -49,7 +52,9 @@ android {
     }
     buildFeatures {
         compose = true
+        aidl = true
     }
+    
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
     }
@@ -84,78 +89,86 @@ android {
             pickFirsts += "**/*.so"
         }
     }
+//    aaptOptions {
+//        noCompress += "tflite"
+//    }
 }
 
 dependencies {
+    implementation("com.github.jelmerk:hnswlib-core:1.2.1")
     implementation(project(":dragonbones"))
     implementation(libs.androidx.ui.graphics.android)
     implementation(files("libs\\ffmpegkit.jar"))
     implementation(files("libs\\arsc.jar"))
+    implementation(libs.androidx.runtime.android)
+    implementation(libs.androidx.ui.text.android)
+    implementation(libs.androidx.animation.android)
+
     // Desugaring support for modern Java APIs on older Android
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    coreLibraryDesugaring(libs.desugar.jdk)
 
     // ML Kit - 文本识别
-    implementation("com.google.mlkit:text-recognition:16.0.0")
+    implementation(libs.mlkit.text.recognition)
     // ML Kit - 多语言识别支持
-    implementation("com.google.mlkit:text-recognition-chinese:16.0.0")
-    implementation("com.google.mlkit:text-recognition-japanese:16.0.0")
-    implementation("com.google.mlkit:text-recognition-korean:16.0.0")
-    implementation("com.google.mlkit:text-recognition-devanagari:16.0.0")
+    implementation(libs.mlkit.text.chinese)
+    implementation(libs.mlkit.text.japanese)
+    implementation(libs.mlkit.text.korean)
+    implementation(libs.mlkit.text.devanagari)
     
     // diff
-    implementation("io.github.java-diff-utils:java-diff-utils:4.12")
+    implementation(libs.java.diff.utils)
     
     // APK解析和修改库
-    implementation("com.android.tools.build:apksig:8.1.0") // APK签名工具
-    implementation("net.dongliu:apk-parser:2.6.10") // 用于解析和处理AndroidManifest.xml
-    implementation("com.github.Sable:axml:2.0.0") // 用于Android二进制XML的读写
-    implementation("com.github.iyxan23:zipalign-java:1.2.1") // 用于处理ZIP文件对齐
+    implementation(libs.android.apksig) // APK签名工具
+    implementation(libs.apk.parser) // 用于解析和处理AndroidManifest.xml
+    implementation(libs.sable.axml) // 用于Android二进制XML的读写
+    implementation(libs.zipalign.java) // 用于处理ZIP文件对齐
     
     // ZIP处理库 - 用于APK解压和重打包
-    implementation("org.apache.commons:commons-compress:1.25.0")
-    implementation("commons-io:commons-io:2.13.0") // 添加Apache Commons IO
+    implementation(libs.commons.compress)
+    implementation(libs.commons.io) // 添加Apache Commons IO
     
     // 图片处理库
-    implementation("com.github.bumptech.glide:glide:4.16.0") // 用于处理图像
+    implementation(libs.glide) // 用于处理图像
     
     // XML处理
-    implementation("androidx.core:core-ktx:1.12.0")
+    implementation(libs.androidx.core.ktx)
     
     // libsu - root access library
-    implementation("com.github.topjohnwu.libsu:core:6.0.0")
+    implementation(libs.libsu)
     
     // Add missing SVG support
-    implementation("com.caverock:androidsvg-aar:1.4")
+    implementation(libs.androidsvg)
     
     // Add missing GIF support for Markwon
-    implementation("pl.droidsonroids.gif:android-gif-drawable:1.2.28")
+    implementation(libs.android.gif)
     
     // Image Cropper for background image cropping
-    implementation("com.vanniktech:android-image-cropper:4.5.0")
+    implementation(libs.image.cropper)
     
     // ExoPlayer for video background
-    implementation("com.google.android.exoplayer:exoplayer:2.19.1")
-    implementation("com.google.android.exoplayer:exoplayer-core:2.19.1")
-    implementation("com.google.android.exoplayer:exoplayer-ui:2.19.1")
+    implementation(libs.exoplayer)
+    implementation(libs.exoplayer.core)
+    implementation(libs.exoplayer.ui)
     
     // Material 3 Window Size Class
-    implementation("androidx.compose.material3:material3-window-size-class:1.2.0")
+    implementation(libs.material3.window)
     
     // Window metrics library for foldables and adaptive layouts
-    implementation("androidx.window:window:1.1.0")
+    implementation(libs.window)
     
     // Document conversion libraries
-    implementation("com.itextpdf:itextg:5.5.10")
-    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
-    implementation("net.lingala.zip4j:zip4j:2.11.5")
+    implementation(libs.itextg)
+    implementation(libs.pdfbox)
+    implementation(libs.zip4j)
     
     // 图片加载库
-    implementation("io.coil-kt:coil:2.5.0")
-    implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation(libs.coil)
+    implementation(libs.coil.compose)
     
     // LaTeX rendering libraries
-    implementation("ru.noties:jlatexmath-android:0.2.0")
-    implementation("com.github.tech-pw:RenderX:1.0.0") // RenderX library for LaTeX rendering
+    implementation(libs.jlatexmath)
+    implementation(libs.renderx) // RenderX library for LaTeX rendering
     
     // Base Android dependencies
     implementation(libs.androidx.core.ktx)
@@ -164,35 +177,40 @@ dependencies {
     implementation(libs.lifecycle.runtime.ktx)
 
     // Kotlin Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+    implementation(libs.kotlinx.serialization)
     
     // UUID dependencies
-    implementation("com.benasher44:uuid:0.8.2")
+    implementation(libs.uuid)
     
     // Gson for JSON parsing
-    implementation("com.google.code.gson:gson:2.10.1")
+    implementation(libs.gson)
 
     // HJSON dependency for human-friendly JSON parsing
-    implementation("org.hjson:hjson:3.0.0")
+    implementation(libs.hjson)
 
     // 中文分词库 - Jieba Android
-    implementation("com.huaban:jieba-analysis:1.0.2")
+    implementation(libs.jieba)
 
     // 向量搜索库 - 轻量级实现，适合Android
-    implementation("com.github.jelmerk:hnswlib-core:0.0.46")
-    implementation("com.github.jelmerk:hnswlib-utils:0.0.46")
+    implementation(libs.hnswlib.core)
+    implementation(libs.hnswlib.utils)
     
     // 用于向量嵌入的TF Lite (如果需要自定义嵌入)
-    implementation("org.tensorflow:tensorflow-lite:2.8.0")
+    implementation(libs.tensorflow.lite)
+    implementation(libs.mediapipe.tasks.text)
 
     // Room 数据库
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1") // Kotlin扩展和协程支持
-    kapt("androidx.room:room-compiler:2.6.1") // 使用kapt代替ksp
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx) // Kotlin扩展和协程支持
+    kapt(libs.room.compiler) // 使用kapt代替ksp
+
+    // ObjectBox
+    implementation(libs.objectbox.kotlin)
+    kapt(libs.objectbox.processor)
 
     // Archive/compression libraries
-    implementation("org.apache.commons:commons-compress:1.24.0")
-    implementation("com.github.junrar:junrar:7.5.5")
+    implementation(libs.commons.compress.v2)
+    implementation(libs.junrar)
 
     // Compose dependencies - use BOM for version consistency
     implementation(platform(libs.compose.bom))
@@ -207,19 +225,19 @@ dependencies {
     implementation(libs.compose.animation.core)
 
     // Navigation Compose
-    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation(libs.navigation.compose)
 
     // Shizuku dependencies
-    implementation("dev.rikka.shizuku:api:13.1.5")
-    implementation("dev.rikka.shizuku:provider:13.1.5")
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
 
     // Network dependencies
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("org.jsoup:jsoup:1.16.2")
+    implementation(libs.okhttp)
+    implementation(libs.jsoup)
 
     // DataStore dependencies
-    implementation("androidx.datastore:datastore-preferences:1.0.0")
-    implementation("androidx.datastore:datastore-preferences-core:1.0.0")
+    implementation(libs.datastore.preferences)
+    implementation(libs.datastore.preferences.core)
 
     // Debug dependencies
     debugImplementation(libs.compose.ui.tooling)
@@ -232,20 +250,20 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
 
     // Apache POI - for Document processing (DOC, DOCX, etc.)
-    implementation("org.apache.poi:poi:5.2.3")
-    implementation("org.apache.poi:poi-ooxml:5.2.3")
-    implementation("org.apache.poi:poi-scratchpad:5.2.3")
+    implementation(libs.poi)
+    implementation(libs.poi.ooxml)
+    implementation(libs.poi.scratchpad)
 
     // Kotlin logging
-    implementation("io.github.oshai:kotlin-logging-jvm:5.1.0")
-    implementation("org.slf4j:slf4j-api:2.0.9")
-    implementation("org.slf4j:slf4j-simple:2.0.9")
+    implementation(libs.kotlin.logging)
+    implementation(libs.slf4j.api)
+    implementation(libs.slf4j.simple)
 
     // Color picker for theme customization
-    implementation("com.github.skydoves:colorpicker-compose:1.0.6")
+    implementation(libs.colorpicker)
     
     // NanoHTTPD for local web server
-    implementation("org.nanohttpd:nanohttpd:2.3.1")
+    implementation(libs.nanohttpd)
 
     // 添加测试依赖
     testImplementation(libs.junit)
@@ -254,24 +272,28 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.compose.bom))
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    androidTestImplementation("androidx.test:runner:1.5.2")
-    androidTestImplementation("androidx.test:rules:1.5.0")
+    androidTestImplementation(libs.ui.test.junit4)
+    androidTestImplementation(libs.test.runner)
+    androidTestImplementation(libs.test.rules)
     
     // 协程测试依赖
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation(libs.coroutines.test)
+    androidTestImplementation(libs.coroutines.test)
     
     // 模拟测试框架
-    testImplementation("org.mockito:mockito-core:5.2.0")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
-    androidTestImplementation("org.mockito:mockito-android:5.2.0")
-    implementation("sh.calvin.reorderable:reorderable:2.5.1")
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.kotlin)
+    androidTestImplementation(libs.mockito.android)
+    implementation(libs.reorderable)
 
     // Swipe to reveal actions
-    implementation("me.saket.swipe:swipe:1.2.0")
+    implementation(libs.swipe)
 
     // Coroutine
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
+    implementation(libs.coroutines.core)
+    implementation(libs.coroutines.android)
+
+    // ObjectBox
+    implementation(libs.objectbox.kotlin)
+    kapt(libs.objectbox.processor)
 }

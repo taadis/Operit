@@ -1,6 +1,7 @@
 package com.ai.assistance.operit.ui.main.screens
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -10,19 +11,22 @@ import com.ai.assistance.operit.ui.features.assistant.screens.AssistantConfigScr
 import com.ai.assistance.operit.ui.features.chat.screens.AIChatScreen
 import com.ai.assistance.operit.ui.features.demo.screens.ShizukuDemoScreen
 import com.ai.assistance.operit.ui.features.help.screens.HelpScreen
+import com.ai.assistance.operit.ui.features.memory.screens.MemoryScreen
 import com.ai.assistance.operit.ui.features.packages.screens.PackageManagerScreen
-import com.ai.assistance.operit.ui.features.problems.screens.ProblemLibraryScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ChatHistorySettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.FunctionalConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.FunctionalPromptConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.LanguageSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelConfigScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ModelPromptsSettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.PromptMarketScreen
 import com.ai.assistance.operit.ui.features.settings.screens.SettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.SpeechServicesSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ThemeSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesSettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.CustomHeadersSettingsScreen
 import com.ai.assistance.operit.ui.features.token.TokenConfigWebViewScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.AppPermissionsToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.FileManagerToolScreen
@@ -38,12 +42,6 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.ffmpegtoolbox.FFmpeg
 import com.ai.assistance.operit.ui.features.toolbox.screens.speechtotext.SpeechToTextToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.texttospeech.TextToSpeechToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.tooltester.ToolTesterScreen
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 
 // 路由配置类
 typealias ScreenNavigationHandler = (Screen) -> Unit
@@ -97,6 +95,9 @@ sealed class Screen(
                         navigateTo(Settings)
                         updateNavItem(NavItem.Settings)
                     },
+                    onNavigateToUserPreferences = { navigateTo(UserPreferencesSettings) },
+                    onNavigateToModelConfig = { navigateTo(ModelConfig) },
+                    onNavigateToModelPrompts = { navigateTo(ModelPromptsSettings) },
                     onLoading = onLoading,
                     onError = onError,
                     onGestureConsumed = onGestureConsumed
@@ -104,7 +105,7 @@ sealed class Screen(
         }
     }
 
-    data object ProblemLibrary : Screen(navItem = NavItem.ProblemLibrary) {
+    data object MemoryBase : Screen(navItem = NavItem.MemoryBase, titleRes = "记忆库") {
         @Composable
         override fun Content(
                 navController: NavController,
@@ -116,7 +117,7 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            ProblemLibraryScreen()
+            MemoryScreen()
         }
     }
 
@@ -162,7 +163,8 @@ sealed class Screen(
                     onMarkdownDemoSelected = { navigateTo(MarkdownDemo) },
                     onTextToSpeechSelected = { navigateTo(TextToSpeech) },
                     onSpeechToTextSelected = { navigateTo(SpeechToText) },
-                    onToolTesterSelected = { navigateTo(ToolTester) }
+                    onToolTesterSelected = { navigateTo(ToolTester) },
+                    onAgreementSelected = { navigateTo(Agreement) }
             )
         }
     }
@@ -204,7 +206,9 @@ sealed class Screen(
                     navigateToFunctionalPrompts = { navigateTo(FunctionalPromptConfig) },
                     navigateToFunctionalConfig = { navigateTo(FunctionalConfig) },
                     navigateToChatHistorySettings = { navigateTo(ChatHistorySettings) },
-                    navigateToLanguageSettings = { navigateTo(LanguageSettings) }
+                    navigateToLanguageSettings = { navigateTo(LanguageSettings) },
+                    navigateToSpeechServicesSettings = { navigateTo(SpeechServicesSettings) },
+                    navigateToCustomHeadersSettings = { navigateTo(CustomHeadersSettings) }
             )
         }
     }
@@ -238,6 +242,24 @@ sealed class Screen(
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             AboutScreen()
+        }
+    }
+
+    data object Agreement : Screen(navItem = NavItem.Agreement) {
+        @Composable
+        override fun Content(
+            navController: NavController,
+            navigateTo: ScreenNavigationHandler,
+            updateNavItem: NavItemChangeHandler,
+            onGoBack: () -> Unit,
+            hasBackgroundImage: Boolean,
+            onLoading: (Boolean) -> Unit,
+            onError: (String) -> Unit,
+            onGestureConsumed: (Boolean) -> Unit
+        ) {
+            com.ai.assistance.operit.ui.features.agreement.screens.AgreementScreen(
+                    onAgreementAccepted = onGoBack
+            )
         }
     }
 
@@ -360,9 +382,9 @@ sealed class Screen(
             ModelConfigScreen(onBackPressed = onGoBack)
         }
     }
-
-    data object ModelPromptsSettings :
-            Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "模型提示词设置") {
+    // 添加SpeechServicesSettings屏幕定义
+    data object SpeechServicesSettings :
+            Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "语音服务设置") {
         @Composable
         override fun Content(
                 navController: NavController,
@@ -374,14 +396,94 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            ModelPromptsSettingsScreen(
+            SpeechServicesSettingsScreen(onBackPressed = onGoBack)
+        }
+    }
+    
+    // 添加自定义请求头设置屏幕
+    data object CustomHeadersSettings :
+        Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "自定义请求头") {
+        @Composable
+        override fun Content(
+            navController: NavController,
+            navigateTo: ScreenNavigationHandler,
+            updateNavItem: NavItemChangeHandler,
+            onGoBack: () -> Unit,
+            hasBackgroundImage: Boolean,
+            onLoading: (Boolean) -> Unit,
+            onError: (String) -> Unit,
+            onGestureConsumed: (Boolean) -> Unit
+        ) {
+            CustomHeadersSettingsScreen(onBackPressed = onGoBack)
+        }
+    }
+    
+    // 添加FunctionalPromptConfig屏幕定义 - 放在FunctionalConfig之后
+    data object FunctionalPromptConfig :
+            Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "功能提示词配置") {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            // 检查是否是从助手配置界面导航过来的
+            val fromAssistant =
+                    navController.previousBackStackEntry?.destination?.route?.contains(
+                            "AssistantConfig"
+                    ) == true
+    
+            com.ai.assistance.operit.ui.features.settings.screens.FunctionalPromptConfigScreen(
                     onBackPressed = onGoBack,
-                    onNavigateToFunctionalPrompts = { navigateTo(FunctionalPromptConfig) }
+                    onNavigateToModelPrompts = { navigateTo(ModelPromptsSettings) }
             )
         }
     }
 
-    data object FunctionalConfig :
+    data object PromptMarket :
+        Screen(parentScreen = ModelPromptsSettings, navItem = NavItem.Settings, titleRes = "提示词市场") {
+        @Composable
+        override fun Content(
+            navController: NavController,
+            navigateTo: ScreenNavigationHandler,
+            updateNavItem: NavItemChangeHandler,
+            onGoBack: () -> Unit,
+            hasBackgroundImage: Boolean,
+            onLoading: (Boolean) -> Unit,
+            onError: (String) -> Unit,
+            onGestureConsumed: (Boolean) -> Unit
+        ) {
+            PromptMarketScreen(onBackPressed = onGoBack)
+        }
+    }
+
+    data object ModelPromptsSettings :
+            Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "模型提示词设置") {
+                @Composable
+                override fun Content(
+                    navController: NavController,
+                    navigateTo: ScreenNavigationHandler,
+                    updateNavItem: NavItemChangeHandler,
+                    onGoBack: () -> Unit,
+                    hasBackgroundImage: Boolean,
+                    onLoading: (Boolean) -> Unit,
+                    onError: (String) -> Unit,
+                    onGestureConsumed: (Boolean) -> Unit
+                    ) {
+                        ModelPromptsSettingsScreen(
+                            onBackPressed = onGoBack,
+                    onNavigateToFunctionalPrompts = { navigateTo(FunctionalPromptConfig) },
+                    onNavigateToMarket = { navigateTo(PromptMarket) }
+                            )
+                        }
+                    }
+                    
+                    data object FunctionalConfig :
             Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "功能模型配置") {
         @Composable
         override fun Content(
@@ -698,7 +800,7 @@ object OperitRouter {
     fun getScreenForNavItem(navItem: NavItem): Screen {
         return when (navItem) {
             NavItem.AiChat -> Screen.AiChat
-            NavItem.ProblemLibrary -> Screen.ProblemLibrary
+            NavItem.MemoryBase -> Screen.MemoryBase
             NavItem.Packages -> Screen.Packages
             NavItem.Toolbox -> Screen.Toolbox
             NavItem.ShizukuCommands -> Screen.ShizukuCommands
@@ -708,6 +810,7 @@ object OperitRouter {
             NavItem.TokenConfig -> Screen.TokenConfig
             NavItem.UserPreferencesGuide -> Screen.UserPreferencesGuide()
             NavItem.AssistantConfig -> Screen.AssistantConfig
+            NavItem.Agreement -> Screen.Agreement
             else -> Screen.AiChat
         }
     }
@@ -717,31 +820,4 @@ object OperitRouter {
 object GestureStateHolder {
     // 聊天界面手势是否被消费的状态
     var isChatScreenGestureConsumed: Boolean = false
-}
-
-// 添加FunctionalPromptConfig屏幕定义 - 放在FunctionalConfig之后
-data object FunctionalPromptConfig :
-        Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = "功能提示词配置") {
-    @Composable
-    override fun Content(
-            navController: NavController,
-            navigateTo: ScreenNavigationHandler,
-            updateNavItem: NavItemChangeHandler,
-            onGoBack: () -> Unit,
-            hasBackgroundImage: Boolean,
-            onLoading: (Boolean) -> Unit,
-            onError: (String) -> Unit,
-            onGestureConsumed: (Boolean) -> Unit
-    ) {
-        // 检查是否是从助手配置界面导航过来的
-        val fromAssistant =
-                navController.previousBackStackEntry?.destination?.route?.contains(
-                        "AssistantConfig"
-                ) == true
-
-        FunctionalPromptConfigScreen(
-                onBackPressed = onGoBack,
-                onNavigateToModelPrompts = { navigateTo(ModelPromptsSettings) }
-        )
-    }
 }

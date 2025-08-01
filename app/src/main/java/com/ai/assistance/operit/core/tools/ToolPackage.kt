@@ -9,6 +9,8 @@ import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import com.ai.assistance.operit.ui.permissions.ToolCategory
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.last
 
 /**
  * Represents a package of tools that can be imported by the AI
@@ -89,10 +91,18 @@ class PackageToolExecutor(
             )
         
         // Execute the script using runBlocking since we can't make this a suspending function
-        // without changing the interface
+        // without changing the interface. We collect the last result for single-result compatibility.
         return runBlocking {
-            jsToolManager.executeScript(packageTool.script, tool)
+            jsToolManager.executeScript(packageTool.script, tool).last()
         }
+    }
+
+    override fun invokeAndStream(tool: AITool): Flow<ToolResult> {
+        // Find the tool in the package
+        val packageTool = toolPackage.tools.find { it.name.endsWith(tool.name.split(":").last()) }
+            ?: error("Tool not found in package for streaming") // Should be validated before
+
+        return jsToolManager.executeScript(packageTool.script, tool)
     }
     
     override fun validateParameters(tool: AITool): ToolValidationResult {

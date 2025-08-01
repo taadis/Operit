@@ -214,6 +214,10 @@ class AnrMonitor(
      * 检查主线程健康状态
      */
     private fun checkMainThreadHealth() {
+        mainThreadHandler.post {
+            reportThreadHealthy()
+        }
+
         val now = System.currentTimeMillis()
         val lastResponse = lastResponseTime.get()
         val timeSinceLastResponse = now - lastResponse

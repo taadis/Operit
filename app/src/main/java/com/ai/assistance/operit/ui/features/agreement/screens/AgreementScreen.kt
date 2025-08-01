@@ -1,5 +1,7 @@
 package com.ai.assistance.operit.ui.features.agreement.screens
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -8,12 +10,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.text.HtmlCompat
 import com.ai.assistance.operit.R
 import kotlinx.coroutines.delay
 
+@RequiresApi(Build.VERSION_CODES.P)
 @Composable
 fun AgreementScreen(onAgreementAccepted: () -> Unit) {
         val scrollState = rememberScrollState()
@@ -67,36 +73,67 @@ fun AgreementScreen(onAgreementAccepted: () -> Unit) {
                                         .padding(16.dp)
                 ) {
                         Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {
+                                // Human-readable version
                                 Text(
-                                        text = stringResource(R.string.agreement_user_title),
+                                        text = stringResource(R.string.agreement_human_readable_title),
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-
                                 Spacer(modifier = Modifier.height(8.dp))
-
                                 Text(
-                                        text = stringResource(R.string.agreement_user_content),
+                                        text = stringResource(R.string.agreement_human_readable_content),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
 
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                // Serious version
+                                Text(
+                                        text = stringResource(R.string.agreement_serious_title),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                                 Spacer(modifier = Modifier.height(16.dp))
 
-                                Text(
-                                        text = stringResource(R.string.agreement_privacy_title),
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                val textColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                val typography = MaterialTheme.typography.bodyMedium
+                                AndroidView(
+                                        factory = { context ->
+                                                android.widget.TextView(context).apply {
+                                                        setTextColor(textColor.toArgb())
+                                                        textSize = typography.fontSize.value
+                                                        val lineHeightInPixels = (typography.lineHeight.value * context.resources.displayMetrics.scaledDensity).toInt()
+                                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                                                lineHeight = lineHeightInPixels
+                                                        } else {
+                                                                // Fallback for older APIs
+                                                                setLineSpacing(lineHeightInPixels - paint.fontMetricsInt.descent + paint.fontMetricsInt.ascent.toFloat(), 1.0f)
+                                                        }
+                                                }
+                                        },
+                                        update = { textView ->
+                                                textView.text = HtmlCompat.fromHtml(
+                                                        textView.context.getString(R.string.agreement_serious_content),
+                                                        HtmlCompat.FROM_HTML_MODE_COMPACT
+                                                )
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
                                 )
 
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                Spacer(modifier = Modifier.height(24.dp))
 
+                                // Disclaimer
                                 Text(
-                                        text = stringResource(R.string.agreement_privacy_content),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        text = stringResource(R.string.agreement_disclaimer),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                 )
                         }
                 }
@@ -124,9 +161,9 @@ fun AgreementScreen(onAgreementAccepted: () -> Unit) {
                 ) {
                         Text(
                                 text =
-                                        if (isButtonEnabled) 
+                                        if (isButtonEnabled)
                                             stringResource(R.string.agreement_accept)
-                                        else 
+                                        else
                                             stringResource(R.string.agreement_wait, remainingSeconds),
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Medium

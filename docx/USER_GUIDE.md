@@ -365,7 +365,7 @@
 <h3 id="section-3-1" style="display: flex; justify-content: space-between; align-items: center;"><span>🧰 开箱即用</span><a href="#section-3" style="text-decoration: none; font-size: 0.8em;" title="返回上一级">↩️</a></h3>
 <em>这部分为<strong>内置包</strong></em>
 <br>
-当你让AI写软件，软件的性能取决于AI的能力。示例中的模型为<code>Deepseel-R1</code>模型
+当你让AI写软件，软件的性能取决于AI的能力。示例中的模型为<code>DeepSeek-R1</code>模型
 
 <table style="width: 100%;">
   <thead>
@@ -541,7 +541,7 @@
 | `sleep` | 短暂暂停执行 |
 | `device_info` | 获取设备详细信息 |
 | `use_package` | 激活扩展包 |
-| `query_problem_library` | 查询问题库，获取类似的过去解决方案、用户风格偏好和用户信息 |
+| `query_knowledge_library` | 查询问题库，获取类似的过去解决方案、用户风格偏好和用户信息 |
 
 文件系统工具：
 

@@ -74,7 +74,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.noties.jlatexmath.JLatexMathDrawable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.forEachGesture
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 
 private const val TAG = "MarkdownRenderer"
 private const val RENDER_INTERVAL_MS = 100L // 渲染间隔 0.1 秒
@@ -788,17 +790,7 @@ fun StableMarkdownNodeRenderer(
                     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
                     Text(
                             text = inlineContent,
-                            modifier = Modifier.fillMaxWidth().pointerInput(onLinkClick) {
-                                detectTapGestures { offset ->
-                                    textLayoutResult?.let { layoutResult ->
-                                        val position = layoutResult.getOffsetForPosition(offset)
-                                        inlineContent.getStringAnnotations("URL", position, position)
-                                            .firstOrNull()?.let { annotation ->
-                                                onLinkClick?.invoke(annotation.item)
-                                            }
-                                    }
-                                }
-                            },
+                            modifier = Modifier.fillMaxWidth().handleLinkClicks(onLinkClick, textLayoutResult, inlineContent),
                             inlineContent = inlineContentMap,
                             color = textColor,
                             style = MaterialTheme.typography.bodyMedium,
@@ -885,12 +877,14 @@ fun StableMarkdownNodeRenderer(
                             }
                         }
 
+                var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
                 Text(
                         text = inlineContent,
+                        modifier = Modifier.weight(1f).handleLinkClicks(onLinkClick, textLayoutResult, inlineContent),
                         inlineContent = inlineContentMap,
                         color = textColor,
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
+                        onTextLayout = { textLayoutResult = it }
                 )
             }
         }
@@ -939,12 +933,14 @@ fun StableMarkdownNodeRenderer(
                             }
                         }
 
+                var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
                 Text(
                         text = inlineContent,
+                        modifier = Modifier.weight(1f).handleLinkClicks(onLinkClick, textLayoutResult, inlineContent),
                         inlineContent = inlineContentMap,
                         color = textColor,
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
+                        onTextLayout = { textLayoutResult = it }
                 )
             }
         }
@@ -1032,7 +1028,7 @@ fun StableMarkdownNodeRenderer(
 
         // 添加XML块渲染支持
         MarkdownProcessorType.XML_BLOCK -> {
-            Log.d(TAG, "【渲染性能】渲染XML块: id=$rendererId, 内容长度=${content.length}")
+            // Log.d(TAG, "【渲染性能】渲染XML块: id=$rendererId, 内容长度=${content.length}")
             xmlRenderer.RenderXmlContent(
                     xmlContent = content,
                     modifier = Modifier.fillMaxWidth(),
@@ -1086,17 +1082,7 @@ fun StableMarkdownNodeRenderer(
             var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
             Text(
                     text = inlineContent,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).pointerInput(onLinkClick) {
-                        detectTapGestures { offset ->
-                            textLayoutResult?.let { layoutResult ->
-                                val position = layoutResult.getOffsetForPosition(offset)
-                                inlineContent.getStringAnnotations("URL", position, position)
-                                    .firstOrNull()?.let { annotation ->
-                                        onLinkClick?.invoke(annotation.item)
-                                    }
-                            }
-                        }
-                    },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).handleLinkClicks(onLinkClick, textLayoutResult, inlineContent),
                     inlineContent = inlineContentMap,
                     color = textColor,
                     style = MaterialTheme.typography.bodyMedium,
@@ -1125,17 +1111,7 @@ fun StableMarkdownNodeRenderer(
             var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
             Text(
                     text = inlineContent,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).pointerInput(onLinkClick) {
-                        detectTapGestures { offset ->
-                            textLayoutResult?.let { layoutResult ->
-                                val position = layoutResult.getOffsetForPosition(offset)
-                                inlineContent.getStringAnnotations("URL", position, position)
-                                    .firstOrNull()?.let { annotation ->
-                                        onLinkClick?.invoke(annotation.item)
-                                    }
-                            }
-                        }
-                    },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).handleLinkClicks(onLinkClick, textLayoutResult, inlineContent),
                     inlineContent = inlineContentMap,
                     color = textColor,
                     style = MaterialTheme.typography.bodyMedium,
@@ -1143,6 +1119,34 @@ fun StableMarkdownNodeRenderer(
             )
         }
     }
+}
+
+/** 扩展函数，用于处理Markdown文本中的链接点击事件 */
+private fun Modifier.handleLinkClicks(
+    onLinkClick: ((String) -> Unit)?,
+    textLayoutResult: TextLayoutResult?,
+    annotatedString: AnnotatedString
+): Modifier = if (onLinkClick != null) {
+    this.pointerInput(onLinkClick, textLayoutResult, annotatedString) {
+        forEachGesture {
+            awaitPointerEventScope {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                val up = waitForUpOrCancellation()
+                if (up != null) {
+                    textLayoutResult?.let { layoutResult ->
+                        val position = layoutResult.getOffsetForPosition(up.position)
+                        annotatedString.getStringAnnotations("URL", position, position)
+                            .firstOrNull()?.let { annotation ->
+                                up.consume()
+                                onLinkClick(annotation.item)
+                            }
+                    }
+                }
+            }
+        }
+    }
+} else {
+    this
 }
 
 /** 将文本及其子节点添加到AnnotatedString中，应用适当的样式 */
@@ -1261,10 +1265,10 @@ private fun AnnotatedString.Builder.appendStyledText(
                                     background = Color.LightGray.copy(alpha = 0.15f),
                                     fontSize = 14.sp
                             )
-                    ) { 
+                    ) {
                         append("$$")
                         append(latexContent)
-                        append("$$") 
+                        append("$$")
                     }
                 }
             }

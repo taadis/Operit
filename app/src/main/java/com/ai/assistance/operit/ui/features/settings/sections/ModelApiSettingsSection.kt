@@ -1,8 +1,11 @@
 package com.ai.assistance.operit.ui.features.settings.sections
 
 import android.util.Log
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Api
@@ -318,7 +321,7 @@ fun ModelApiSettingsSection(
             }
 
             // 添加API提供商选择
-            var apiProviderDropdownExpanded by remember { mutableStateOf(false) }
+            var showApiProviderDialog by remember { mutableStateOf(false) }
 
             // API提供商选择
             Text(
@@ -327,67 +330,53 @@ fun ModelApiSettingsSection(
                     modifier = Modifier.padding(bottom = 4.dp)
             )
 
-            Box {
-                OutlinedTextField(
-                        value = selectedApiProvider.name,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("选择API提供商") },
-                        trailingIcon = {
-                            IconButton(onClick = { apiProviderDropdownExpanded = true }) {
-                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "展开")
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                )
-
-                DropdownMenu(
-                        expanded = apiProviderDropdownExpanded,
-                        onDismissRequest = { apiProviderDropdownExpanded = false },
-                        modifier = Modifier.fillMaxWidth(0.9f)
+            // 美化后的选择器按钮
+            Surface(
+                    modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showApiProviderDialog = true }
+                            .padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            ) {
+                Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // 添加所有API提供商选项
-                    ApiProviderType.values().forEach { provider ->
-                        DropdownMenuItem(
-                                text = {
-                                    Text(
-                                            when (provider) {
-                                                ApiProviderType.OPENAI -> "OpenAI (GPT系列)"
-                                                ApiProviderType.ANTHROPIC -> "Anthropic (Claude系列)"
-                                                ApiProviderType.GOOGLE -> "Google (Gemini系列)"
-                                                ApiProviderType.BAIDU -> "百度 (文心一言系列)"
-                                                ApiProviderType.ALIYUN -> "阿里云 (通义千问系列)"
-                                                ApiProviderType.XUNFEI -> "讯飞 (星火认知系列)"
-                                                ApiProviderType.ZHIPU -> "智谱AI (ChatGLM系列)"
-                                                ApiProviderType.BAICHUAN -> "百川大模型"
-                                                ApiProviderType.MOONSHOT -> "月之暗面大模型"
-                                                ApiProviderType.DEEPSEEK -> "Deepseek大模型"
-                                                ApiProviderType.SILICONFLOW -> "硅基流动"
-                                                ApiProviderType.OPENROUTER -> "OpenRouter (多模型聚合)"
-                                                ApiProviderType.INFINIAI -> "无问芯穹"
-                                                ApiProviderType.LMSTUDIO -> "LM Studio"
-                                                ApiProviderType.OTHER -> "其他提供商"
-                                            }
-                                    )
-                                },
-                                onClick = {
-                                    selectedApiProvider = provider
-                                    apiProviderDropdownExpanded = false
-
-                                    // 根据选择的提供商设置推荐模型名称
-                                    if (modelNameInput.isEmpty() ||
-                                                    isDefaultModelName(modelNameInput)
-                                    ) {
-                                        modelNameInput = getDefaultModelName(provider)
-                                    }
-                                }
+                    Column {
+                        Text(
+                                text = getProviderDisplayName(selectedApiProvider),
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
                         )
-
-                        if (provider.ordinal < ApiProviderType.values().size - 1) {
-                            Divider()
-                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                                text = "点击选择API提供商",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
+                    Icon(
+                            Icons.Default.KeyboardArrowDown,
+                            contentDescription = "选择",
+                            tint = MaterialTheme.colorScheme.primary
+                    )
                 }
+            }
+
+            if (showApiProviderDialog) {
+                ApiProviderDialog(
+                        onDismissRequest = { showApiProviderDialog = false },
+                        onProviderSelected = { provider ->
+                            selectedApiProvider = provider
+                            if (modelNameInput.isEmpty() || isDefaultModelName(modelNameInput)) {
+                                modelNameInput = getDefaultModelName(provider)
+                            }
+                            showApiProviderDialog = false
+                        }
+                )
             }
 
             // 显示模型限制信息
@@ -662,5 +651,174 @@ fun ModelApiSettingsSection(
                 }
             }
         }
+    }
+}
+
+private fun getProviderDisplayName(provider: ApiProviderType): String {
+    return when (provider) {
+        ApiProviderType.OPENAI -> "OpenAI (GPT系列)"
+        ApiProviderType.ANTHROPIC -> "Anthropic (Claude系列)"
+        ApiProviderType.GOOGLE -> "Google (Gemini系列)"
+        ApiProviderType.BAIDU -> "百度 (文心一言系列)"
+        ApiProviderType.ALIYUN -> "阿里云 (通义千问系列)"
+        ApiProviderType.XUNFEI -> "讯飞 (星火认知系列)"
+        ApiProviderType.ZHIPU -> "智谱AI (ChatGLM系列)"
+        ApiProviderType.BAICHUAN -> "百川大模型"
+        ApiProviderType.MOONSHOT -> "月之暗面大模型"
+        ApiProviderType.DEEPSEEK -> "Deepseek大模型"
+        ApiProviderType.SILICONFLOW -> "硅基流动"
+        ApiProviderType.OPENROUTER -> "OpenRouter (多模型聚合)"
+        ApiProviderType.INFINIAI -> "无问芯穹"
+        ApiProviderType.LMSTUDIO -> "LM Studio"
+        ApiProviderType.OTHER -> "其他提供商"
+    }
+}
+
+@Composable
+private fun ApiProviderDialog(
+        onDismissRequest: () -> Unit,
+        onProviderSelected: (ApiProviderType) -> Unit
+) {
+    val providers = ApiProviderType.values()
+    var searchQuery by remember { mutableStateOf("") }
+    
+    val filteredProviders = remember(searchQuery) {
+        if (searchQuery.isEmpty()) {
+            providers.toList()
+        } else {
+            providers.filter { provider ->
+                getProviderDisplayName(provider).contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
+    Dialog(onDismissRequest = onDismissRequest) {
+        Surface(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // 标题和搜索框
+                Text(
+                        "选择API提供商",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                )
+                
+                // 搜索框
+                OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("搜索提供商", fontSize = 14.sp) },
+                        leadingIcon = {
+                            Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = "搜索",
+                                    modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(
+                                        onClick = { searchQuery = "" },
+                                        modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                            Icons.Default.Clear,
+                                            contentDescription = "清除",
+                                            modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                        shape = RoundedCornerShape(8.dp)
+                )
+
+                // 提供商列表
+                androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier.weight(1f)
+                ) {
+                    items(filteredProviders.size) { index ->
+                        val provider = filteredProviders[index]
+                        // 美化的提供商选项
+                        Surface(
+                                modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .clickable { onProviderSelected(provider) },
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        ) {
+                            Row(
+                                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 提供商图标（使用圆形背景色）
+                                Box(
+                                        modifier = Modifier
+                                                .size(32.dp)
+                                                .background(
+                                                        getProviderColor(provider),
+                                                        CircleShape
+                                                ),
+                                        contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                            text = getProviderDisplayName(provider).first().toString(),
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.width(16.dp))
+                                
+                                Text(
+                                        text = getProviderDisplayName(provider),
+                                        style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // 底部按钮
+                Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismissRequest) {
+                        Text("取消")
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 为不同提供商生成不同的颜色
+@Composable
+private fun getProviderColor(provider: ApiProviderType): androidx.compose.ui.graphics.Color {
+    return when (provider) {
+        ApiProviderType.OPENAI -> MaterialTheme.colorScheme.primary
+        ApiProviderType.ANTHROPIC -> MaterialTheme.colorScheme.tertiary
+        ApiProviderType.GOOGLE -> MaterialTheme.colorScheme.secondary
+        ApiProviderType.BAIDU -> MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+        ApiProviderType.ALIYUN -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f)
+        ApiProviderType.XUNFEI -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
+        ApiProviderType.ZHIPU -> MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+        ApiProviderType.BAICHUAN -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f)
+        ApiProviderType.MOONSHOT -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f)
+        ApiProviderType.DEEPSEEK -> MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+        ApiProviderType.SILICONFLOW -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.6f)
+        ApiProviderType.OPENROUTER -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f)
+        ApiProviderType.INFINIAI -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+        ApiProviderType.LMSTUDIO -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)
+        ApiProviderType.OTHER -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)
     }
 }

@@ -278,7 +278,7 @@ class StreamMarkdownItalicPlugin(private val includeAsterisks: Boolean = true) :
                 builder.build(
                         kmpPattern {
                             literal("*")
-                            noneOf('*', '\n')
+                            noneOf('*', '\n',' ')
                         }
                 )
         endMatcher = builder.build(kmpPattern { literal("*") })
@@ -911,7 +911,7 @@ class StreamMarkdownUnorderedListPlugin(private val includeMarker: Boolean = tru
             StreamKmpGraphBuilder()
                     .build(
                             kmpPattern {
-                                anyOf('-', '+')
+                                anyOf('-', '+', '*')
                                 char(' ')
                             }
                     )

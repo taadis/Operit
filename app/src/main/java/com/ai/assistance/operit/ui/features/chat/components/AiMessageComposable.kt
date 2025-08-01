@@ -1,5 +1,7 @@
 package com.ai.assistance.operit.ui.features.chat.components
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -8,17 +10,13 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownRenderer
 import com.ai.assistance.operit.ui.features.chat.components.part.CustomXmlRenderer
-import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.markdown.toCharStream
-import androidx.compose.ui.platform.LocalContext
-import android.content.Intent
-import android.net.Uri
-
-private const val TAG = "AiMessageComposable"
+import com.ai.assistance.operit.util.stream.Stream
 
 /**
  * A composable function for rendering AI response messages in a Cursor IDE style. Supports text
@@ -28,24 +26,29 @@ private const val TAG = "AiMessageComposable"
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AiMessageComposable(
-        message: ChatMessage,
-        backgroundColor: Color,
-        textColor: Color,
-        onLinkClick: ((String) -> Unit)? = null,
-        overrideStream: Stream<String>? = null
+    message: ChatMessage,
+    backgroundColor: Color,
+    textColor: Color,
+    onLinkClick: ((String) -> Unit)? = null,
+    overrideStream: Stream<String>? = null
 ) {
     // 创建自定义XML渲染器
     val xmlRenderer = remember { CustomXmlRenderer() }
-
-    // 移除记录开始渲染时间和LaunchedEffect
+    val context = LocalContext.current
+    val rememberedOnLinkClick = remember(context, onLinkClick) {
+        onLinkClick ?: { url ->
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            context.startActivity(intent)
+        }
+    }
 
     // 移除Card背景，使用直接的Column布局
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Text(
-                text = "Response",
-                style = MaterialTheme.typography.labelSmall,
-                color = textColor.copy(alpha = 0.7f),
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
+            text = "Response",
+            style = MaterialTheme.typography.labelSmall,
+            color = textColor.copy(alpha = 0.7f),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
         )
 
         // 使用 message.timestamp 作为 key，确保在重组期间，
@@ -58,35 +61,25 @@ fun AiMessageComposable(
                 // 将contentStream保存到本地变量以避免智能转换问题
                 val charStream = remember(streamToRender) { streamToRender.toCharStream() }
 
-                val context = LocalContext.current
                 StreamMarkdownRenderer(
-                        markdownStream = charStream,
-                        textColor = textColor,
-                        backgroundColor = backgroundColor,
-                        onLinkClick = { url ->
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                            context.startActivity(intent)
-                        },
-                        xmlRenderer = xmlRenderer,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    markdownStream = charStream,
+                    textColor = textColor,
+                    backgroundColor = backgroundColor,
+                    onLinkClick = rememberedOnLinkClick,
+                    xmlRenderer = xmlRenderer,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                 )
             } else {
                 // 对于已完成的静态消息，使用新的字符串渲染器以提高性能
-                val context = LocalContext.current
                 StreamMarkdownRenderer(
-                        content = message.content,
-                        textColor = textColor,
-                        backgroundColor = backgroundColor,
-                        onLinkClick = { url ->
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                            context.startActivity(intent)
-                        },
-                        xmlRenderer = xmlRenderer,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    content = message.content,
+                    textColor = textColor,
+                    backgroundColor = backgroundColor,
+                    onLinkClick = rememberedOnLinkClick,
+                    xmlRenderer = xmlRenderer,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                 )
             }
         }
     }
-
-    // 移除记录结束渲染时间的LaunchedEffect
 }

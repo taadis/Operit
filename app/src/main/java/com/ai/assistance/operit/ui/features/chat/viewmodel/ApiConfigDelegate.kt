@@ -37,8 +37,22 @@ class ApiConfigDelegate(
     private val _enableAiPlanning = MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_AI_PLANNING)
     val enableAiPlanning: StateFlow<Boolean> = _enableAiPlanning.asStateFlow()
 
-    private val _memoryOptimization = MutableStateFlow(ApiPreferences.DEFAULT_MEMORY_OPTIMIZATION)
-    val memoryOptimization: StateFlow<Boolean> = _memoryOptimization.asStateFlow()
+    private val _keepScreenOn = MutableStateFlow(ApiPreferences.DEFAULT_KEEP_SCREEN_ON)
+    val keepScreenOn: StateFlow<Boolean> = _keepScreenOn.asStateFlow()
+
+    private val _enableThinkingMode = MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_THINKING_MODE)
+    val enableThinkingMode: StateFlow<Boolean> = _enableThinkingMode.asStateFlow()
+
+    private val _enableThinkingGuidance =
+            MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_THINKING_GUIDANCE)
+    val enableThinkingGuidance: StateFlow<Boolean> = _enableThinkingGuidance.asStateFlow()
+
+    private val _enableMemoryAttachment =
+            MutableStateFlow(ApiPreferences.DEFAULT_ENABLE_MEMORY_ATTACHMENT)
+    val enableMemoryAttachment: StateFlow<Boolean> = _enableMemoryAttachment.asStateFlow()
+
+    private val _contextLength = MutableStateFlow(ApiPreferences.DEFAULT_CONTEXT_LENGTH)
+    val contextLength: StateFlow<Float> = _contextLength.asStateFlow()
 
     // 为了兼容现有代码，添加API密钥状态流
     private val _apiKey = MutableStateFlow("")
@@ -82,10 +96,38 @@ class ApiConfigDelegate(
             }
         }
 
-        // Collect memory optimization preference
+        // Collect thinking mode setting
         viewModelScope.launch {
-            apiPreferences.memoryOptimizationFlow.collect { enabled ->
-                _memoryOptimization.value = enabled
+            apiPreferences.enableThinkingModeFlow.collect { enabled ->
+                _enableThinkingMode.value = enabled
+            }
+        }
+
+        // Collect thinking guidance setting
+        viewModelScope.launch {
+            apiPreferences.enableThinkingGuidanceFlow.collect { enabled ->
+                _enableThinkingGuidance.value = enabled
+            }
+        }
+
+        // Collect memory attachment setting
+        viewModelScope.launch {
+            apiPreferences.enableMemoryAttachmentFlow.collect { enabled ->
+                _enableMemoryAttachment.value = enabled
+            }
+        }
+
+        // Collect keep screen on setting
+        viewModelScope.launch {
+            apiPreferences.keepScreenOnFlow.collect { enabled ->
+                _keepScreenOn.value = enabled
+            }
+        }
+
+        // Collect context length setting
+        viewModelScope.launch {
+            apiPreferences.contextLengthFlow.collect { length ->
+                _contextLength.value = length
             }
         }
     }
@@ -152,6 +194,41 @@ class ApiConfigDelegate(
             val newValue = !_enableAiPlanning.value
             apiPreferences.saveEnableAiPlanning(newValue)
             _enableAiPlanning.value = newValue
+        }
+    }
+
+    /** 切换思考模式 */
+    fun toggleThinkingMode() {
+        viewModelScope.launch {
+            val newValue = !_enableThinkingMode.value
+            apiPreferences.saveEnableThinkingMode(newValue)
+            _enableThinkingMode.value = newValue
+        }
+    }
+
+    /** 切换思考引导 */
+    fun toggleThinkingGuidance() {
+        viewModelScope.launch {
+            val newValue = !_enableThinkingGuidance.value
+            apiPreferences.saveEnableThinkingGuidance(newValue)
+            _enableThinkingGuidance.value = newValue
+        }
+    }
+
+    /** 切换记忆附着 */
+    fun toggleMemoryAttachment() {
+        viewModelScope.launch {
+            val newValue = !_enableMemoryAttachment.value
+            apiPreferences.saveEnableMemoryAttachment(newValue)
+            _enableMemoryAttachment.value = newValue
+        }
+    }
+
+    /** 更新上下文长度 */
+    fun updateContextLength(length: Float) {
+        viewModelScope.launch {
+            apiPreferences.saveContextLength(length)
+            _contextLength.value = length
         }
     }
 }

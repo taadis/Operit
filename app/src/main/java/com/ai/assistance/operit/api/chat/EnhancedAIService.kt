@@ -4,23 +4,25 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import android.view.WindowManager
 import com.ai.assistance.operit.api.chat.enhance.ConversationMarkupManager
 import com.ai.assistance.operit.api.chat.enhance.ConversationRoundManager
 import com.ai.assistance.operit.api.chat.enhance.ConversationService
 import com.ai.assistance.operit.api.chat.enhance.InputProcessor
 import com.ai.assistance.operit.api.chat.enhance.MultiServiceManager
 import com.ai.assistance.operit.api.chat.enhance.ToolExecutionManager
+import com.ai.assistance.operit.core.application.ActivityLifecycleManager
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.InputProcessingState
 import com.ai.assistance.operit.data.model.PlanItem
-import com.ai.assistance.operit.data.model.ToolExecutionProgress
 import com.ai.assistance.operit.data.model.ToolInvocation
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
+import com.ai.assistance.operit.ui.permissions.ToolCategory
 import com.ai.assistance.operit.util.stream.Stream
 import com.ai.assistance.operit.util.stream.StreamCollector
 import com.ai.assistance.operit.util.stream.plugins.StreamXmlPlugin
@@ -33,8 +35,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -42,6 +44,9 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import com.ai.assistance.operit.data.model.UiControllerCommand
+import com.ai.assistance.operit.api.chat.enhance.AutomationStepResult
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Enhanced AI service that provides advanced conversational capabilities by integrating various
@@ -218,6 +223,10 @@ class EnhancedAIService private constructor(private val context: Context) {
             MutableStateFlow<InputProcessingState>(InputProcessingState.Idle)
     val inputProcessingState = _inputProcessingState.asStateFlow()
 
+    // Per-request token counts
+    private val _perRequestTokenCounts = MutableStateFlow<Pair<Int, Int>?>(null)
+    val perRequestTokenCounts: StateFlow<Pair<Int, Int>?> = _perRequestTokenCounts.asStateFlow()
+
     // Plan items tracking
     private val _planItems = MutableStateFlow<List<PlanItem>>(emptyList())
     val planItems = _planItems.asStateFlow()
@@ -229,6 +238,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
     // Api Preferences for settings
     private val apiPreferences = ApiPreferences(context)
+
 
     // Coroutine management
     private val toolProcessingScope = CoroutineScope(Dispatchers.IO)
@@ -275,14 +285,9 @@ class EnhancedAIService private constructor(private val context: Context) {
         Companion.refreshAllServices(context)
     }
 
-    /** Get the tool progress flow for UI updates */
-    fun getToolProgressFlow(): StateFlow<ToolExecutionProgress> {
-        return toolHandler.toolProgress
-    }
-
     /** Process user input with a delay for UI feedback */
     suspend fun processUserInput(input: String): String {
-        _inputProcessingState.value = InputProcessingState.Processing("Processing input...")
+        _inputProcessingState.value = InputProcessingState.Processing("正在处理输入...")
         return InputProcessor.processUserInput(input)
     }
 
@@ -396,9 +401,15 @@ class EnhancedAIService private constructor(private val context: Context) {
             chatHistory: List<Pair<String, String>> = emptyList(),
             workspacePath: String? = null,
             functionType: FunctionType = FunctionType.CHAT,
-            promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT
+            promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT,
+            enableThinking: Boolean = false,
+            thinkingGuidance: Boolean = false,
+            onNonFatalError: suspend (error: String) -> Unit = {}
     ): Stream<String> {
-        Log.d(TAG, "sendMessage调用开始: 功能类型=$functionType, 提示词类型=$promptFunctionType")
+        Log.d(
+                TAG,
+                "sendMessage调用开始: 功能类型=$functionType, 提示词类型=$promptFunctionType, 思考引导=$thinkingGuidance"
+        )
         accumulatedInputTokenCount = 0
         accumulatedOutputTokenCount = 0
 
@@ -412,29 +423,45 @@ class EnhancedAIService private constructor(private val context: Context) {
                     // Mark conversation as active
                     isConversationActive.set(true)
 
+                    // 在新一轮对话开始时，重置并初始化内部对话历史
+                    conversationMutex.withLock {
+                        conversationHistory.clear()
+                        conversationHistory.addAll(chatHistory)
+                    }
+
                     // Process the input message for any conversation markup (e.g., for AI planning)
                     val startTime = System.currentTimeMillis()
                     val processedInput = InputProcessor.processUserInput(message)
 
+                    // 将当前用户输入添加到内部历史记录中，以便进行后续处理
+                    conversationMutex.withLock {
+                        conversationHistory.add(Pair("user", processedInput))
+                    }
+
                     // Update state to show we're processing
                     withContext(Dispatchers.Main) {
-                        _inputProcessingState.value =
-                                InputProcessingState.Processing("Processing message...")
+                        _inputProcessingState.value = InputProcessingState.Processing("正在处理消息...")
                     }
 
                     // Prepare conversation history with system prompt
                     val preparedHistory =
                             prepareConversationHistory(
-                                    chatHistory,
+                                    conversationHistory, // 始终使用内部历史记录
                                     processedInput,
                                     workspacePath,
-                                    promptFunctionType
+                                    promptFunctionType,
+                                    thinkingGuidance
                             )
+                    
+                    // 关键修复：用准备好的历史记录（包含了系统提示）去同步更新内部的 conversationHistory 状态
+                    conversationMutex.withLock {
+                        conversationHistory.clear()
+                        conversationHistory.addAll(preparedHistory)
+                    }
 
                     // Update UI state to connecting
                     withContext(Dispatchers.Main) {
-                        _inputProcessingState.value =
-                                InputProcessingState.Connecting("Connecting to AI service...")
+                        _inputProcessingState.value = InputProcessingState.Connecting("正在连接AI服务...")
                     }
 
                     // Get all model parameters from preferences (with enabled state)
@@ -443,13 +470,21 @@ class EnhancedAIService private constructor(private val context: Context) {
                     // 获取对应功能类型的AIService实例
                     val serviceForFunction = getAIServiceForFunction(functionType)
 
+                    // 清空之前的单次请求token计数
+                    _perRequestTokenCounts.value = null
+
                     // 使用新的Stream API
                     Log.d(TAG, "调用AI服务，处理时间: ${System.currentTimeMillis() - startTime}ms")
                     val stream =
                             serviceForFunction.sendMessage(
                                     message = processedInput,
                                     chatHistory = preparedHistory,
-                                    modelParameters = modelParameters
+                                    modelParameters = modelParameters,
+                                    enableThinking = enableThinking,
+                                    onTokensUpdated = { input, output ->
+                                        _perRequestTokenCounts.value = Pair(input, output)
+                                    },
+                                    onNonFatalError = onNonFatalError
                             )
 
                     // 收到第一个响应，更新状态
@@ -470,7 +505,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                         if (isFirstChunk) {
                             withContext(Dispatchers.Main) {
                                 _inputProcessingState.value =
-                                        InputProcessingState.Receiving("Receiving AI response...")
+                                        InputProcessingState.Receiving("正在接收AI响应...")
                             }
                             isFirstChunk = false
                             Log.d(TAG, "首次响应耗时: ${System.currentTimeMillis() - streamStartTime}ms")
@@ -523,7 +558,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                     Log.e(TAG, "发送消息时发生错误: ${e.message}", e)
                     withContext(Dispatchers.Main) {
                         _inputProcessingState.value =
-                                InputProcessingState.Error(message = "Error: ${e.message}")
+                                InputProcessingState.Error(message = "错误: ${e.message}")
                     }
                 }
 
@@ -534,7 +569,7 @@ class EnhancedAIService private constructor(private val context: Context) {
             } finally {
                 // 确保流处理完成后调用
                 val collector = this
-                withContext(Dispatchers.IO) { processStreamCompletion(functionType, collector) }
+                withContext(Dispatchers.IO) { processStreamCompletion(functionType, collector, enableThinking, onNonFatalError) }
             }
         }
     }
@@ -634,7 +669,9 @@ class EnhancedAIService private constructor(private val context: Context) {
     /** 在处理完流后调用，使用增强的工具检测功能 */
     private suspend fun processStreamCompletion(
             functionType: FunctionType = FunctionType.CHAT,
-            collector: StreamCollector<String>
+            collector: StreamCollector<String>,
+            enableThinking: Boolean = false,
+            onNonFatalError: suspend (error: String) -> Unit
     ) {
         try {
             val startTime = System.currentTimeMillis()
@@ -724,7 +761,9 @@ class EnhancedAIService private constructor(private val context: Context) {
                         toolInvocations,
                         roundManager.getDisplayContent(),
                         functionType,
-                        collector
+                        collector,
+                        enableThinking,
+                        onNonFatalError
                 )
                 return
             }
@@ -802,14 +841,13 @@ class EnhancedAIService private constructor(private val context: Context) {
             toolInvocations: List<ToolInvocation>,
             displayContent: String,
             functionType: FunctionType = FunctionType.CHAT,
-            collector: StreamCollector<String>
+            collector: StreamCollector<String>,
+            enableThinking: Boolean = false,
+            onNonFatalError: suspend (error: String) -> Unit
     ) {
         val startTime = System.currentTimeMillis()
         // Only process the first tool invocation, show warning if there are multiple
         val invocation = toolInvocations.first()
-
-        // 创建工具结果变量
-        var result: ToolResult
 
         if (toolInvocations.size > 1) {
             Log.w(TAG, "发现多个工具调用(${toolInvocations.size})，但只处理第一个: ${invocation.tool.name}")
@@ -826,30 +864,62 @@ class EnhancedAIService private constructor(private val context: Context) {
             conversationMutex.withLock { conversationHistory.add(Pair("tool", warningMessage)) }
         }
 
-        // Start executing the tool
-        withContext(Dispatchers.Main) {
-            _inputProcessingState.value =
-                    InputProcessingState.Processing("Executing tool: ${invocation.tool.name}")
-        }
-
         // Get tool executor and execute
         val executor = toolHandler.getToolExecutor(invocation.tool.name)
 
+        // Start executing the tool
+        withContext(Dispatchers.Main) {
+            val category = executor?.getCategory() ?: ToolCategory.SYSTEM_OPERATION
+            _inputProcessingState.value =
+                    InputProcessingState.ExecutingTool(invocation.tool.name, category)
+        }
+
         if (executor == null) {
-            // Tool not available handling
+            val toolName = invocation.tool.name
+            val errorMessage = when {
+                // 检查 packName.toolname 的错误格式
+                toolName.contains('.') && !toolName.contains(':') -> {
+                    val parts = toolName.split('.', limit = 2)
+                    "工具调用语法错误: 对于工具包中的工具，应使用 'packName:toolName' 格式，而不是 '${toolName}'。您可能想调用 '${parts.getOrNull(0)}:${parts.getOrNull(1)}'。"
+                }
+                // 检查 packName:toolname 格式
+                toolName.contains(':') -> {
+                    val parts = toolName.split(':', limit = 2)
+                    val packName = parts[0]
+                    val packageManager = toolHandler.getOrCreatePackageManager()
+                    
+                     // val isImported = packageManager.isPackageImported(packName)
+                    val isAvailable = packageManager.getAvailablePackages().containsKey(packName)
+
+                    when {
+                        // Imported and available, but not active (since executor is null)
+                         isAvailable ->
+                             "工具包 '$packName' 已导入但未在当前会话中激活。请先使用 'use_package' 命令来激活它。"
+                         
+                        // Not imported and not available
+                        else ->
+                            "工具包 '$packName' 不存在。"
+                    }
+                }
+                else -> "工具 '${toolName}' 不可用或不存在。如果这是一个工具包中的工具，请使用 'packName:toolName' 格式调用。"
+            }
+
+
             val notAvailableContent =
-                    ConversationMarkupManager.createToolNotAvailableError(invocation.tool.name)
+                ConversationMarkupManager.createToolNotAvailableError(toolName, errorMessage)
             roundManager.appendContent(notAvailableContent)
             collector.emit(notAvailableContent)
 
-            // Create error result
-            result =
+            // Create and process the error result immediately
+            val errorResult =
                     ToolResult(
-                            toolName = invocation.tool.name,
+                            toolName = toolName,
                             success = false,
                             result = StringResultData(""),
-                            error = "Tool '${invocation.tool.name}' not available"
+                            error = errorMessage
                     )
+            processToolResult(errorResult, functionType, collector, enableThinking, onNonFatalError)
+            return
         } else {
             // Check permissions before execution
             val (hasPermission, errorResult) =
@@ -861,8 +931,8 @@ class EnhancedAIService private constructor(private val context: Context) {
                 // properly
                 val errorStatusContent =
                         ConversationMarkupManager.createErrorStatus(
-                                "Permission denied",
-                                "Operation '${invocation.tool.name}' was not authorized"
+                                "权限拒绝",
+                                "操作 '${invocation.tool.name}' 未授权"
                         )
                 roundManager.appendContent(errorStatusContent)
                 collector.emit(errorStatusContent)
@@ -875,8 +945,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                                         toolName = invocation.tool.name,
                                         success = false,
                                         result = StringResultData(""),
-                                        error =
-                                                "Permission denied: Operation '${invocation.tool.name}' was not authorized"
+                                        error = "权限拒绝: 操作 '${invocation.tool.name}' 未授权"
                                 )
                         )
                 roundManager.appendContent(toolResultStatusContent)
@@ -884,46 +953,73 @@ class EnhancedAIService private constructor(private val context: Context) {
 
                 // Process error result and exit
                 if (errorResult != null) {
-                    processToolResult(errorResult, functionType, collector)
+                    processToolResult(errorResult, functionType, collector, enableThinking, onNonFatalError)
                 }
                 return
             }
 
             // Execute the tool
             val toolStartTime = System.currentTimeMillis()
-            result = ToolExecutionManager.executeToolSafely(invocation, executor)
-            val executionTime = System.currentTimeMillis() - toolStartTime
-            Log.d(TAG, "工具执行完成，耗时: ${executionTime}ms，结果: ${if (result.success) "成功" else "失败"}")
+            val allToolResults = mutableListOf<ToolResult>()
 
-            // Display tool execution result
-            val toolResultString =
-                    if (result.success) result.result.toString() else "${result.error}"
-            val toolResultStatusContent =
-                    ConversationMarkupManager.formatToolResultForMessage(result)
-            roundManager.appendContent(toolResultStatusContent)
-            collector.emit(toolResultStatusContent)
+            ToolExecutionManager.executeToolSafely(invocation, executor).collect { result ->
+                allToolResults.add(result)
+
+                val executionTime = System.currentTimeMillis() - toolStartTime
+                Log.d(
+                        TAG,
+                        "工具中间结果收到，耗时: ${executionTime}ms，结果: ${if (result.success) "成功" else "失败"}"
+                )
+
+                // Display intermediate tool execution result
+                val toolResultStatusContent =
+                        ConversationMarkupManager.formatToolResultForMessage(result)
+                roundManager.appendContent(toolResultStatusContent)
+                collector.emit(toolResultStatusContent)
+            }
+
+            if (allToolResults.isNotEmpty()) {
+                val lastResult = allToolResults.last()
+                val combinedResultString =
+                        allToolResults.joinToString("\n") { res ->
+                            if (res.success) {
+                                res.result.toString()
+                            } else {
+                                "Error in step: ${res.error ?: "Unknown error"}"
+                            }
+                        }
+
+                val finalResult =
+                        ToolResult(
+                                toolName = invocation.tool.name,
+                                success = lastResult.success,
+                                result = StringResultData(combinedResultString),
+                                error = lastResult.error
+                        )
+
+                Log.d(TAG, "所有工具结果收集完毕，准备最终处理。")
+                processToolResult(finalResult, functionType, collector, enableThinking, onNonFatalError)
+            }
         }
 
         // Process the tool result
         Log.d(TAG, "工具调用处理耗时: ${System.currentTimeMillis() - startTime}ms")
-        processToolResult(result, functionType, collector)
     }
 
     /** Process tool execution result - simplified version without callbacks */
     private suspend fun processToolResult(
             result: ToolResult,
             functionType: FunctionType = FunctionType.CHAT,
-            collector: StreamCollector<String>
+            collector: StreamCollector<String>,
+            enableThinking: Boolean = false,
+            onNonFatalError: suspend (error: String) -> Unit
     ) {
         val startTime = System.currentTimeMillis()
         Log.d(TAG, "开始处理工具结果: ${result.toolName}, 成功: ${result.success}")
 
         // Add transition state
         withContext(Dispatchers.Main) {
-            _inputProcessingState.value =
-                    InputProcessingState.Processing(
-                            "Tool execution completed, preparing further processing..."
-                    )
+            _inputProcessingState.value = InputProcessingState.ProcessingToolResult(result.toolName)
         }
 
         // Check if conversation is still active
@@ -949,8 +1045,7 @@ class EnhancedAIService private constructor(private val context: Context) {
 
         // Clearly show we're preparing to send tool result to AI
         withContext(Dispatchers.Main) {
-            _inputProcessingState.value =
-                    InputProcessingState.Processing("Preparing to process tool execution result...")
+            _inputProcessingState.value = InputProcessingState.ProcessingToolResult(result.toolName)
         }
 
         // Add short delay to make state change more visible
@@ -962,6 +1057,9 @@ class EnhancedAIService private constructor(private val context: Context) {
         // 获取对应功能类型的AIService实例
         val serviceForFunction = getAIServiceForFunction(functionType)
 
+        // 清空之前的单次请求token计数
+        _perRequestTokenCounts.value = null
+
         // 使用新的Stream API处理工具执行结果
         withContext(Dispatchers.IO) {
             try {
@@ -971,15 +1069,18 @@ class EnhancedAIService private constructor(private val context: Context) {
                         serviceForFunction.sendMessage(
                                 message = toolResultMessage,
                                 chatHistory = currentChatHistory,
-                                modelParameters = modelParameters
+                                modelParameters = modelParameters,
+                                enableThinking = enableThinking,
+                                onTokensUpdated = { input, output ->
+                                    _perRequestTokenCounts.value = Pair(input, output)
+                                },
+                                onNonFatalError = onNonFatalError
                         )
 
                 // 更新状态为接收中
                 withContext(Dispatchers.Main) {
                     _inputProcessingState.value =
-                            InputProcessingState.Receiving(
-                                    "Receiving AI response after tool execution..."
-                            )
+                            InputProcessingState.Receiving("正在接收工具执行后的AI响应...")
                 }
 
                 // 处理流
@@ -1011,6 +1112,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                 // Update accumulated token counts
                 accumulatedInputTokenCount += serviceForFunction.inputTokenCount
                 accumulatedOutputTokenCount += serviceForFunction.outputTokenCount
+                
                 Log.d(
                         TAG,
                         "Token count updated after tool result. Input: ${serviceForFunction.inputTokenCount}, Output: ${serviceForFunction.outputTokenCount}. Accumulated: $accumulatedInputTokenCount, $accumulatedOutputTokenCount"
@@ -1020,7 +1122,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                 Log.d(TAG, "工具结果AI处理完成，收到 $totalChars 字符，耗时: ${processingTime}ms")
 
                 // 流处理完成，处理完成逻辑
-                processStreamCompletion(functionType, collector)
+                processStreamCompletion(functionType, collector, enableThinking, onNonFatalError)
             } catch (e: Exception) {
                 Log.e(TAG, "处理工具执行结果时出错", e)
                 withContext(Dispatchers.Main) {
@@ -1164,15 +1266,16 @@ class EnhancedAIService private constructor(private val context: Context) {
             chatHistory: List<Pair<String, String>>,
             processedInput: String,
             workspacePath: String?,
-            promptFunctionType: PromptFunctionType
-    ): MutableList<Pair<String, String>> {
+            promptFunctionType: PromptFunctionType,
+            thinkingGuidance: Boolean
+    ): List<Pair<String, String>> {
         return conversationService.prepareConversationHistory(
                 chatHistory,
                 processedInput,
                 workspacePath,
-                conversationHistory,
                 packageManager,
-                promptFunctionType
+                promptFunctionType,
+                thinkingGuidance
         )
     }
 
@@ -1194,9 +1297,15 @@ class EnhancedAIService private constructor(private val context: Context) {
         // Reset input processing state
         _inputProcessingState.value = InputProcessingState.Idle
 
+        // Reset per-request token counts
+        _perRequestTokenCounts.value = null
+
         // Clear callback references
         currentResponseCallback = null
         currentCompleteCallback = null
+
+        // 停止AI服务并关闭屏幕常亮
+        stopAiService()
 
         Log.d(TAG, "Conversation cancellation complete - all state reset except plan items")
     }
@@ -1205,6 +1314,7 @@ class EnhancedAIService private constructor(private val context: Context) {
     private fun cancelAllToolExecutions() {
         toolProcessingScope.coroutineContext.cancelChildren()
     }
+
     // --- Service Lifecycle Management ---
 
     /** 启动前台服务以保持应用活跃 */
@@ -1219,6 +1329,9 @@ class EnhancedAIService private constructor(private val context: Context) {
         } else {
             Log.d(TAG, "AI前台服务已在运行，无需重复启动。")
         }
+        
+        // 使用管理器来应用屏幕常亮设置
+        ActivityLifecycleManager.checkAndApplyKeepScreenOn(true)
     }
 
     /** 停止前台服务 */
@@ -1229,6 +1342,9 @@ class EnhancedAIService private constructor(private val context: Context) {
         } else {
             Log.d(TAG, "AI前台服务未在运行，无需重复停止。")
         }
+        
+        // 使用管理器来恢复屏幕常亮设置
+        ActivityLifecycleManager.checkAndApplyKeepScreenOn(false)
     }
 
     /**
@@ -1245,6 +1361,46 @@ class EnhancedAIService private constructor(private val context: Context) {
                 originalContent,
                 aiGeneratedCode,
                 multiServiceManager
+        )
+    }
+
+    /**
+     * Get the next UI command from the AI for UI automation.
+     *
+     * @param uiState A description of the current UI elements.
+     * @param taskGoal The objective for the current step.
+     * @param history A list of previous commands and results for context.
+     * @return A JSON string representing the AI's command.
+     */
+    suspend fun getUiControllerCommand(
+        uiState: String,
+        taskGoal: String,
+        history: List<Pair<String, String>>
+    ): String {
+        return conversationService.getUiControllerCommand(
+            uiState,
+            taskGoal,
+            history,
+            multiServiceManager
+        )
+    }
+
+    /**
+     * Executes a full UI automation task by repeatedly querying the AI and executing its commands.
+     *
+     * @param initialUiState The initial description of the UI.
+     * @param taskGoal The high-level goal for the entire task.
+     * @return A Flow of automation step results, including explanations and final UI state.
+     */
+    suspend fun executeUiAutomationTask(
+        initialUiState: String,
+        taskGoal: String
+    ): Flow<AutomationStepResult> {
+        return conversationService.executeUiAutomationTask(
+            initialUiState,
+            taskGoal,
+            multiServiceManager,
+            toolHandler
         )
     }
 }

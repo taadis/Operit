@@ -2,8 +2,6 @@ package com.ai.assistance.operit.ui.features.chat.viewmodel
 
 import android.content.Intent
 import com.ai.assistance.operit.data.model.AiReference
-import com.ai.assistance.operit.data.model.ToolExecutionProgress
-import com.ai.assistance.operit.data.model.ToolExecutionState
 import com.ai.assistance.operit.ui.permissions.PermissionLevel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,22 +19,8 @@ class UiStateDelegate {
     private val _toastEvent = MutableStateFlow<String?>(null)
     val toastEvent: StateFlow<String?> = _toastEvent.asStateFlow()
 
-    private val _toolProgress =
-            MutableStateFlow(ToolExecutionProgress(state = ToolExecutionState.IDLE))
-    val toolProgress: StateFlow<ToolExecutionProgress> = _toolProgress.asStateFlow()
-
     private val _masterPermissionLevel = MutableStateFlow(PermissionLevel.ASK)
     val masterPermissionLevel: StateFlow<PermissionLevel> = _masterPermissionLevel.asStateFlow()
-
-    // 聊天统计信息
-    private val _contextWindowSize = MutableStateFlow(0)
-    val contextWindowSize: StateFlow<Int> = _contextWindowSize.asStateFlow()
-
-    private val _inputTokenCount = MutableStateFlow(0)
-    val inputTokenCount: StateFlow<Int> = _inputTokenCount.asStateFlow()
-
-    private val _outputTokenCount = MutableStateFlow(0)
-    val outputTokenCount: StateFlow<Int> = _outputTokenCount.asStateFlow()
 
     // 文件选择器请求
     private val _fileChooserRequest = MutableStateFlow<Intent?>(null)
@@ -72,21 +56,9 @@ class UiStateDelegate {
         _toastEvent.value = null
     }
 
-    /** 更新工具执行进度 */
-    fun updateToolProgress(progress: ToolExecutionProgress) {
-        _toolProgress.value = progress
-    }
-
     /** 更新主权限级别 */
     fun updateMasterPermissionLevel(level: PermissionLevel) {
         _masterPermissionLevel.value = level
-    }
-
-    /** 更新聊天统计信息 */
-    fun updateChatStatistics(contextSize: Int, inputTokens: Int, outputTokens: Int) {
-        _contextWindowSize.value = contextSize
-        _inputTokenCount.value = inputTokens
-        _outputTokenCount.value = outputTokens
     }
 
     /** 请求文件选择器 */

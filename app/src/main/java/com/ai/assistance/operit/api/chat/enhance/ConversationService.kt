@@ -3,9 +3,15 @@ package com.ai.assistance.operit.api.chat.enhance
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.core.config.SystemPromptConfig
+import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.core.tools.packTool.PackageManager
+import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.PreferenceProfile
+import com.ai.assistance.operit.data.model.ToolParameter
+import com.ai.assistance.operit.data.model.UiControllerCommand
+import com.ai.assistance.operit.core.tools.UIPageResultData
+import com.ai.assistance.operit.core.tools.SimplifiedUINode
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.FunctionalPromptManager
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
@@ -17,10 +23,25 @@ import com.ai.assistance.operit.util.stream.stream
 import com.github.difflib.DiffUtils
 import com.github.difflib.UnifiedDiffUtils
 import java.util.Calendar
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONArray
+import org.json.JSONException
+import org.json.JSONObject
+
+/** Represents the result of a single step in a UI automation task. */
+data class AutomationStepResult(
+    /** A natural language explanation of the action taken. Null for the final state report. */
+    val explanation: String?,
+    /** The actual command executed. Null for the final state report. */
+    val command: UiControllerCommand?,
+    /** The final UI page info. Only present for the very last event in the flow. */
+    val finalUiState: UIPageResultData? = null
+)
 
 /** 处理会话相关功能的服务类，包括会话总结、偏好处理和对话切割准备 */
 class ConversationService(private val context: Context) {
@@ -156,22 +177,21 @@ class ConversationService(private val context: Context) {
      * @param chatHistory 原始聊天历史
      * @param processedInput 处理后的用户输入
      * @param workspacePath 当前绑定的工作区路径，可以为null
-     * @param conversationHistory 存储修改后的对话历史
      * @param packageManager 包管理器
      * @param promptFunctionType 提示函数类型
+     * @param thinkingGuidance 是否需要思考指导
      * @return 准备好的对话历史列表
      */
     suspend fun prepareConversationHistory(
             chatHistory: List<Pair<String, String>>,
             processedInput: String,
             workspacePath: String?,
-            conversationHistory: MutableList<Pair<String, String>>,
             packageManager: PackageManager,
-            promptFunctionType: PromptFunctionType
-    ): MutableList<Pair<String, String>> {
+            promptFunctionType: PromptFunctionType,
+            thinkingGuidance: Boolean = false
+    ): List<Pair<String, String>> {
+        val preparedHistory = mutableListOf<Pair<String, String>>()
         conversationMutex.withLock {
-            conversationHistory.clear()
-
             // Add system prompt if not already present
             if (!chatHistory.any { it.first == "system" }) {
                 val activeProfile = preferencesManager.getUserPreferencesFlow().first()
@@ -185,16 +205,18 @@ class ConversationService(private val context: Context) {
                         functionalPromptManager.getPromptForFunction(promptFunctionType)
 
                 // 获取系统提示词，现在传入workspacePath
-                val systemPrompt = SystemPromptConfig.getSystemPromptWithCustomPrompts(
+                val systemPrompt =
+                        SystemPromptConfig.getSystemPromptWithCustomPrompts(
                         packageManager,
                         workspacePath,
                         planningEnabled,
                         introPrompt,
-                        tonePrompt
+                                tonePrompt,
+                                thinkingGuidance
                 )
 
                 if (preferencesText.isNotEmpty()) {
-                    conversationHistory.add(
+                    preparedHistory.add(
                             0,
                             Pair(
                                     "system",
@@ -202,12 +224,12 @@ class ConversationService(private val context: Context) {
                             )
                     )
                 } else {
-                    conversationHistory.add(0, Pair("system", systemPrompt))
+                    preparedHistory.add(0, Pair("system", systemPrompt))
                 }
             }
 
             // Process each message in chat history
-            for (message in chatHistory) {
+            chatHistory.forEachIndexed { index, message ->
                 val role = message.first
                 val content = message.second
 
@@ -216,18 +238,18 @@ class ConversationService(private val context: Context) {
                     val xmlTags = splitXmlTag(content)
                     if (xmlTags.isNotEmpty()) {
                         // Process the message with tool results
-                        processChatMessageWithTools(content, xmlTags, conversationHistory)
+                        processChatMessageWithTools(content, xmlTags, preparedHistory, index, chatHistory.size)
                     } else {
                         // Add the message as is
-                        conversationHistory.add(message)
+                        preparedHistory.add(message)
                     }
                 } else {
                     // Add user or system messages as is
-                    conversationHistory.add(message)
+                    preparedHistory.add(message)
                 }
             }
         }
-        return conversationHistory
+        return preparedHistory
     }
 
     /**
@@ -302,16 +324,15 @@ class ConversationService(private val context: Context) {
     suspend fun processChatMessageWithTools(
             content: String,
             xmlTags: List<List<String>>,
-            conversationHistory: MutableList<Pair<String, String>>
+            conversationHistory: MutableList<Pair<String, String>>,
+            messageIndex: Int,
+            totalMessages: Int
     ) {
         if (xmlTags.isEmpty()) {
             // 如果没有XML标签，直接添加为AI消息
             conversationHistory.add(Pair("assistant", content))
             return
         }
-
-        // 获取内存优化设置
-        val memoryOptimizationEnabled = apiPreferences.memoryOptimizationFlow.first()
 
         // 按顺序处理标签
         val segments = mutableListOf<Pair<String, String>>() // 角色, 内容
@@ -328,8 +349,10 @@ class ConversationService(private val context: Context) {
                 continue
             }
 
-            // 应用内存优化（如果启用）
-            if (memoryOptimizationEnabled && tagContent.length > 1000 && tagName == "tool_result") {
+            // 应用内存优化: 只有当消息不是最近25条时才触发
+            val distanceFromEnd = totalMessages - 1 - messageIndex
+            if (distanceFromEnd > 25 && tagContent.length > 1000 && tagName == "tool_result") {
+                 Log.d(TAG, "Optimizing tool result for message at index $messageIndex (distance from end: $distanceFromEnd)")
                 tagContent = optimizeToolResult(tagContent)
             }
 
@@ -513,43 +536,78 @@ class ConversationService(private val context: Context) {
             val normalizedAiGeneratedCode = aiGeneratedCode.replace("\r\n", "\n").trim()
 
             val systemPrompt =
-                    """
-                You are a code editing assistant. Your task is to transform the 'Original File' based on the 'AI-Generated Code' by creating a custom patch file. The placeholder `// ... existing code ...` in the AI code represents the entire original content.
+                """
+                You are an expert code editing assistant. Your task is to convert an 'AI-Generated Request' into a precise patch file. This patch will be used to modify the 'Original File Content'.
 
                 **CRITICAL RULES:**
                 1. Your output MUST ONLY be the patch content, following the custom format below. Do not add any explanations or markdown.
-                2. The format for each change consists of a SEARCH block and a REPLACE block.
-                3. The SEARCH block starts with `<<<<<<< SEARCH`, ends with `=======`, and contains the **exact, verbatim text** from the 'Original File' to be replaced.
-                4. The REPLACE block starts after `=======`, ends with `>>>>>>> REPLACE`, and contains the new code. To correctly append or prepend, you must include the original content (represented by the placeholder) in the REPLACE block.
+                2. The patch format for each change consists of a SEARCH block and a REPLACE block.
+                3. The SEARCH block starts with `<<<<<<< SEARCH`, ends with `=======`, and contains the **exact, verbatim text** from the 'Original File' to be replaced or deleted.
+                4. The REPLACE block starts after `=======`, ends with `>>>>>>> REPLACE`, and contains the new code. For deletions, the REPLACE block is empty.
 
-                Example for appending:
-                AI-Generated Code:
+                **How to interpret the 'AI-Generated Request':**
+                The request can come in several formats:
+                - **Placeholders:** `// ... existing code ...` represents the entire unchanged original content. Use this to determine if changes are prepended or appended.
+                - **Diff-like format:** Lines starting with `+` are additions. Lines starting with `-` are deletions. Lines without a prefix are context for locating the change.
+                - **Natural Language Comments:** Instructions like `// delete the login function` or `// add a new parameter to this method` provide high-level guidance. You must find the corresponding code block in the 'Original File Content' and generate the appropriate SEARCH/REPLACE blocks.
+
+                **Example 1: Using Placeholders (Appending)**
+                AI-Generated Request:
                 `// ... existing code ...
-                new line`
+                new final line`
                 Resulting Patch:
                 <<<<<<< SEARCH
-                original content
+                <entire original content>
                 =======
-                original content
-                new line
+                <entire original content>
+                new final line
+                >>>>>>> REPLACE
+
+                **Example 2: Using Diff Format**
+                Original File Content:
+                `line 1
+                line 2
+                line 3`
+                AI-Generated Request:
+                `line 1
+                -line 2
+                +new line 2
+                line 3`
+                Resulting Patch:
+                <<<<<<< SEARCH
+                line 2
+                =======
+                new line 2
+                >>>>>>> REPLACE
+
+                **Example 3: Using Natural Language**
+                Original File Content:
+                `function login(user, pass) {
+                  // ... implementation ...
+                }`
+                AI-Generated Request:
+                `// delete the login function`
+                Resulting Patch:
+                <<<<<<< SEARCH
+                function login(user, pass) {
+                  // ... implementation ...
+                }
+                =======
                 >>>>>>> REPLACE
                 """.trimIndent()
 
             val userPrompt =
-                    """
-                **Original File Content:**
-                ```
-                $normalizedOriginalContent
-                ```
-
-                **AI-Generated Code (with placeholders):**
-                ```
-                $normalizedAiGeneratedCode
-                ```
-
-                Now, generate ONLY the patch in the custom format.
-                """.trimIndent()
-
+"""
+**Original File Content:**
+```
+$normalizedOriginalContent
+```
+**AI's Edit Request:**
+```
+$normalizedAiGeneratedCode
+```
+Now, generate ONLY the patch in the custom format based on all the rules.
+""".trimIndent()
             val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
             val fileBindingService =
                     multiServiceManager.getServiceForFunction(FunctionType.FILE_BINDING)
@@ -604,7 +662,7 @@ class ConversationService(private val context: Context) {
             val normalizedOriginalContent = originalContent.replace("\r\n", "\n")
             val normalizedAiGeneratedCode = aiGeneratedCode.replace("\r\n", "\n").trim()
             val mergeSystemPrompt =
-                    """
+                """
                 You are an expert programmer. Your task is to create the final, complete content of a file by merging the 'Original File Content' with the 'Intended Changes'.
 
                 The 'Intended Changes' block uses a special placeholder, `// ... existing code ...`, which you MUST replace with the complete and verbatim 'Original File Content'.
@@ -620,19 +678,17 @@ class ConversationService(private val context: Context) {
                 """.trimIndent()
 
             val mergeUserPrompt =
-                    """
-                **Original File Content:**
-                ```
-                $normalizedOriginalContent
-                ```
-
-                **AI-Generated Code (with placeholders):**
-                ```
-                $normalizedAiGeneratedCode
-                ```
-
-                Now, generate ONLY the complete and final merged file content.
-                """.trimIndent()
+"""
+**Original File Content:**
+```
+$normalizedOriginalContent
+```
+**AI-Generated Code (with placeholders):**
+```
+$normalizedAiGeneratedCode
+```
+Now, generate ONLY the complete and final merged file content.
+""".trimIndent()
 
             val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
             val fileBindingService =
@@ -760,5 +816,380 @@ class ConversationService(private val context: Context) {
             Log.e(TAG, "Failed to apply custom loose text patch.", e)
             return Pair(false, originalContent)
         }
+    }
+
+    /**
+     * Gets a UI control command from the specialized AI model.
+     *
+     * @param uiState A description of the current UI elements.
+     * @param taskGoal The objective for the current step.
+     * @param history A list of previous commands and their outcomes.
+     * @param multiServiceManager The service manager for AI communication.
+     * @return A raw string response from the AI.
+     */
+    suspend fun getUiControllerCommand(
+        uiState: String,
+        taskGoal: String,
+        history: List<Pair<String, String>>,
+        multiServiceManager: MultiServiceManager
+    ): String {
+        val systemPrompt = """
+You are a UI automation AI. Your task is to analyze the UI state and task goal, then decide on the next single action. You must return a single JSON object containing your reasoning and the command to execute.
+
+**Output format:**
+- A single, raw JSON object: `{"explanation": "Your reasoning for the action.", "command": {"type": "action_type", "arg": ...}}`.
+- NO MARKDOWN or other text outside the JSON.
+
+**'explanation' field:**
+- A concise, one-sentence description of what you are about to do and why. Example: "Tapping the 'Settings' icon to open the system settings."
+- For `complete` or `interrupt` actions, this field should explain the reason.
+
+**'command' field:**
+- An object containing the action `type` and its `arg`.
+- Available `type` values:
+    - **UI Interaction**: `tap`, `swipe`, `set_input_text`, `press_key`.
+    - **App Management**: `start_app`, `list_installed_apps`.
+    - **Task Control**: `complete`, `interrupt`.
+- `arg` format depends on `type`:
+  - `tap`: `{"x": int, "y": int}`
+  - `swipe`: `{"start_x": int, "start_y": int, "end_x": int, "end_y": int}`
+  - `set_input_text`: `{"text": "string"}`. Inputs into the focused element. Use `tap` first if needed.
+  - `press_key`: `{"key_code": "KEYCODE_STRING"}` (e.g., "KEYCODE_HOME").
+  - `start_app`: `{"package_name": "string"}`. Use this to launch an app directly. This is often more reliable than tapping icons on the home screen.
+  - `list_installed_apps`: `{"include_system_apps": boolean}` (optional, default `false`). Use this to find an app's package name if you don't know it.
+  - `complete`: `arg` must be an empty string. The reason goes in the `explanation` field.
+  - `interrupt`: `arg` must be an empty string. The reason goes in the `explanation` field.
+
+**Inputs:**
+1.  `Current UI State`: List of UI elements and their properties.
+2.  `Task Goal`: The specific objective for this step.
+3.  `Execution History`: A log of your previous actions (your explanations) and their outcomes. Analyze it to avoid repeating mistakes.
+
+Analyze the inputs, choose the best action to achieve the `Task Goal`, and formulate your response in the specified JSON format. Use element `bounds` to calculate coordinates for UI actions.
+""".trimIndent()
+
+        val userPrompt = """
+**Current UI State:**
+```json
+$uiState
+```
+
+**Task Goal:**
+"$taskGoal"
+
+**Execution History:**
+```
+$history
+```
+
+Provide the next action as a single JSON object.
+""".trimIndent()
+
+        val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
+        val uiControllerService =
+            multiServiceManager.getServiceForFunction(FunctionType.UI_CONTROLLER)
+
+        val contentBuilder = StringBuilder()
+        val stream = uiControllerService.sendMessage(
+            message = userPrompt,
+            chatHistory = listOf(Pair("system", systemPrompt)),
+            modelParameters = modelParameters
+        )
+
+        stream.collect { content -> contentBuilder.append(content) }
+
+        try {
+            val inputTokens = uiControllerService.inputTokenCount
+            val outputTokens = uiControllerService.outputTokenCount
+            Log.d(TAG, "UI Controller使用了输入token: $inputTokens, 输出token: $outputTokens")
+            apiPreferences.updatePreferenceAnalysisTokens(inputTokens, outputTokens)
+            Log.d(TAG, "已将UI Controller token统计添加到用户偏好分析token计数中")
+        } catch (e: Exception) {
+            Log.e(TAG, "更新token统计失败", e)
+        }
+
+        return ChatUtils.removeThinkingContent(contentBuilder.toString().trim())
+    }
+
+    /**
+     * Executes a full UI automation task by repeatedly querying the AI and executing its commands.
+     *
+     * @param initialUiState The initial description of the UI.
+     * @param taskGoal The high-level goal for the entire task.
+     * @param multiServiceManager The service manager to get the correct AI service.
+     * @param toolHandler The handler to execute UI commands.
+     * @return A Flow of UiControllerCommands representing the actions taken.
+     */
+    suspend fun executeUiAutomationTask(
+        initialUiState: String,
+        taskGoal: String,
+        multiServiceManager: MultiServiceManager,
+        toolHandler: AIToolHandler
+    ): Flow<AutomationStepResult> = flow {
+        var currentUiState = initialUiState
+        val executionHistory = mutableListOf<Pair<String, String>>()
+        val maxAttempts = 5
+        var loopShouldBreak = false
+
+        for (attempt in 1..maxAttempts) {
+            if (loopShouldBreak) break
+
+            var commandJson = getUiControllerCommand(
+                currentUiState,
+                taskGoal,
+                executionHistory,
+                multiServiceManager
+            )
+
+            Log.d(TAG, "AI command response (attempt $attempt): $commandJson")
+
+            // Attempt to extract JSON from markdown code blocks
+            if (commandJson.contains("```")) {
+                val startIndex = commandJson.indexOf('{')
+                val endIndex = commandJson.lastIndexOf('}')
+                if (startIndex != -1 && endIndex != -1 && startIndex < endIndex) {
+                    commandJson = commandJson.substring(startIndex, endIndex + 1)
+                }
+            }
+
+            try {
+                val responseJson = JSONObject(commandJson)
+                val explanation = responseJson.getString("explanation")
+                val command = responseJson.getJSONObject("command")
+                val type = command.getString("type")
+                
+                // Robustly find the arguments, whether they are in an "arg" object or at the top level.
+                var rawArg = command.opt("arg")
+                if (rawArg == null) {
+                    val potentialArgKeys = setOf("x", "y", "start_x", "start_y", "end_x", "end_y", "text", "key_code", "package_name", "include_system_apps")
+                    val argObject = JSONObject()
+                    var keyFoundInRoot = false
+                    command.keys().forEach { key ->
+                        if (potentialArgKeys.contains(key)) {
+                            argObject.put(key, command.get(key))
+                            keyFoundInRoot = true
+                        }
+                    }
+                    if (keyFoundInRoot) {
+                        rawArg = argObject
+                        Log.d(TAG, "Reconstructed 'arg' from root: $rawArg")
+                    } else if (command.has("type") && command.length() == 1) {
+                         // This case handles simple commands like `{"type": "complete"}` that have no args.
+                         // Do nothing, rawArg remains null, which will become an empty string.
+                    }
+                }
+
+                val arg: Any = when (rawArg) {
+                    is JSONObject -> rawArg.toMap()
+                    else -> rawArg?.toString() ?: ""
+                }
+
+                val uiCommand = UiControllerCommand(type, arg)
+                Log.d(TAG, "Parsed UI Command: $uiCommand, Explanation: $explanation")
+                // Always emit the step result.
+                emit(AutomationStepResult(explanation, uiCommand))
+
+                executionHistory.add(Pair("action", explanation))
+
+                when (type) {
+                    "complete", "interrupt" -> {
+                        Log.d(TAG, "Task flow ending due to '$type' command. Reason: $explanation")
+                        loopShouldBreak = true // Set flag to break after this iteration.
+                    }
+                    "tap", "swipe", "set_input_text", "press_key", "start_app", "list_installed_apps" -> {
+                        val tool = createToolFromJson(type, arg)
+                        Log.d(TAG, "Executing tool: ${tool.name} with params: ${tool.parameters}")
+                        val result = toolHandler.executeTool(tool)
+                        Log.d(TAG, "Tool execution result: $result")
+
+                        val outcomeDescription = if (result.success) {
+                            val resultString = result.result?.toString()
+                            // For app lists, allow more content to ensure the AI gets full context.
+                            val maxLength = if (type == "list_installed_apps") 2000 else 150
+                            val truncatedResult = resultString?.take(maxLength)
+                            "Outcome: Success. ${truncatedResult}"
+                        } else {
+                            "Outcome: Failed. ${result.error}"
+                        }
+                        executionHistory.add(Pair("outcome", outcomeDescription))
+
+                        if (!result.success) {
+                            emit(AutomationStepResult("Action failed: ${result.error}", UiControllerCommand("interrupt", "Action failed: ${result.error}")))
+                            loopShouldBreak = true
+                        } else {
+                             val pageInfoResult = toolHandler.executeTool(AITool("get_page_info", emptyList()))
+                             if (pageInfoResult.success && pageInfoResult.result is UIPageResultData) {
+                                 currentUiState = flattenUiInfo(pageInfoResult.result)
+                                 Log.d(TAG, "Successfully updated UI state.")
+                             } else {
+                                 Log.w(TAG, "Failed to get updated UI state after action.")
+                                 emit(AutomationStepResult("Failed to get updated UI state.", UiControllerCommand("interrupt", "Failed to get updated UI state.")))
+                                 loopShouldBreak = true
+                             }
+                        }
+                    }
+                    else -> {
+                        Log.w(TAG, "Unknown command type '$type' received.")
+                        emit(AutomationStepResult("Unknown command type '$type' received from AI.", UiControllerCommand("interrupt", "Unknown command type '$type' received from AI.")))
+                        loopShouldBreak = true
+                    }
+                }
+            } catch (e: JSONException) {
+                val errorMessage = "Failed to parse AI response as JSON. Raw response: \"$commandJson\". Error: ${e.message}"
+                Log.e(TAG, errorMessage)
+                executionHistory.add(Pair("error", errorMessage))
+                // Continue to the next attempt, allowing the AI to correct itself.
+            }
+        }
+
+        // If the loop finished due to max attempts, emit a final interrupt step.
+        if (!loopShouldBreak) {
+            Log.w(TAG, "Task flow ending due to max attempts reached.")
+            emit(AutomationStepResult("Reached max attempts ($maxAttempts).", UiControllerCommand("interrupt", "Reached max attempts ($maxAttempts).")))
+        }
+
+        // --- Final Step: Always report the final UI state ---
+        Log.d(TAG, "Automation flow finished. Getting final page info.")
+        val finalPageInfoResult = toolHandler.executeTool(AITool("get_page_info", emptyList()))
+        if (finalPageInfoResult.success && finalPageInfoResult.result is UIPageResultData) {
+            // Emit the final UI state as the last item in the flow.
+            emit(AutomationStepResult(explanation = "Final screen state.", command = null, finalUiState = finalPageInfoResult.result))
+        } else {
+            Log.w(TAG, "Failed to get final UI state: ${finalPageInfoResult.error}")
+            // Emit a final failure state.
+            val finalUiState = UIPageResultData("Unknown", "Unknown", SimplifiedUINode(null, "Failed to get final state: ${finalPageInfoResult.error}", null, null, null, false, emptyList()))
+            emit(AutomationStepResult(explanation = "Could not get final screen state.", command = null, finalUiState = finalUiState))
+        }
+    }
+
+    /**
+     * Flattens the hierarchical UI node structure into a simple, flat list of key elements.
+     * This provides a much cleaner context for the AI to make decisions.
+     */
+    private fun flattenUiInfo(pageInfo: UIPageResultData): String {
+        val clickableElements = mutableListOf<String>()
+        val screenTexts = mutableListOf<String>()
+
+        fun traverse(node: SimplifiedUINode) {
+            // If the node is clickable, treat it as an atomic unit. We'll gather all text from
+            // its entire subtree to form a comprehensive description for the AI.
+            if (node.isClickable) {
+                val parts = mutableListOf<String>()
+                
+                // Start by collecting standard properties like resource ID, class, and bounds.
+                node.resourceId?.takeIf { it.isNotBlank() }?.let { parts.add("id: $it") }
+
+                // --- NEW: Recursively find all text and content descriptions in the subtree ---
+                val descriptiveTexts = mutableListOf<String>()
+                fun findTextsRecursively(n: SimplifiedUINode) {
+                    n.text?.takeIf { it.isNotBlank() }?.let { descriptiveTexts.add(it) }
+                    n.contentDesc?.takeIf { it.isNotBlank() }?.let { descriptiveTexts.add(it) }
+                    n.children.forEach(::findTextsRecursively)
+                }
+                findTextsRecursively(node)
+
+                // Combine all found texts into a single descriptive string. This is crucial for
+                // elements where the text label is in a child node of the clickable area.
+                val combinedText = descriptiveTexts.distinct().joinToString(" | ")
+                if (combinedText.isNotBlank()) {
+                    // Using "desc" to signify this is a constructed description. Increased length.
+                    parts.add("desc: \"${combinedText.replace("\"", "'").take(80)}\"")
+                }
+                // --- END NEW ---
+
+                node.className?.let { parts.add("class: ${it.substringAfterLast('.')}") }
+                node.bounds?.let { parts.add("bounds: ${it.replace(' ', ',')}") }
+
+                // Only add the element if it has some identifiable information.
+                if (parts.isNotEmpty()) {
+                    clickableElements.add("[${parts.joinToString(", ")}]")
+                }
+                // Once an element is identified as clickable, we don't process its children separately.
+            } else {
+                // If the node is not clickable, add its text for general context and continue traversal.
+                node.text?.takeIf { it.isNotBlank() }?.let {
+                    screenTexts.add("\"${it.replace("\"", "'").take(70)}\"")
+                }
+                node.children.forEach(::traverse)
+            }
+        }
+
+        traverse(pageInfo.uiElements)
+
+        // Use distinct to remove duplicate text entries from non-clickable elements.
+        val distinctScreenTexts = screenTexts.distinct()
+
+        return """
+        Package: ${pageInfo.packageName}
+        Activity: ${pageInfo.activityName}
+        Clickable Elements:
+        ${clickableElements.joinToString("\n")}
+        Screen Text (
+        for context):
+        ${distinctScreenTexts.joinToString("\n")}
+        """.trimIndent()
+    }
+
+    private fun JSONObject.toMap(): Map<String, Any> {
+        val map = mutableMapOf<String, Any>()
+        val keysItr = this.keys()
+        while (keysItr.hasNext()) {
+            val key = keysItr.next()
+            var value = this.get(key)
+            if (value is JSONObject) {
+                value = value.toMap()
+            }
+            if (value is JSONArray) {
+                value = value.toList()
+            }
+            map[key] = value
+        }
+        return map
+    }
+
+    private fun JSONArray.toList(): List<Any> {
+        val list = mutableListOf<Any>()
+        for (i in 0 until this.length()) {
+            var value = this.get(i)
+            if (value is JSONObject) {
+                value = value.toMap()
+            }
+            if (value is JSONArray) {
+                value = value.toList()
+            }
+            list.add(value)
+        }
+        return list
+    }
+
+    private fun createToolFromJson(type: String, arg: Any): AITool {
+        val parameters = mutableListOf<ToolParameter>()
+        when (arg) {
+            is Map<*, *> -> {
+                arg.forEach { (key, value) ->
+                    val stringValue = when (value) {
+                        is Double -> {
+                            // If the double has no fractional part, convert to Int string to avoid parse errors.
+                            if (value % 1.0 == 0.0) {
+                                value.toInt().toString()
+                            } else {
+                                value.toString()
+                            }
+                        }
+                        else -> value.toString()
+                    }
+                    parameters.add(ToolParameter(key.toString(), stringValue))
+                }
+            }
+            is String -> {
+                 // Fallback for when the AI returns a raw string instead of a JSON object.
+                 when (type) {
+                     "press_key" -> parameters.add(ToolParameter("key_code", arg))
+                     "set_input_text" -> parameters.add(ToolParameter("text", arg))
+                     "start_app" -> parameters.add(ToolParameter("package_name", arg))
+                 }
+            }
+        }
+        return AITool(type, parameters)
     }
 }

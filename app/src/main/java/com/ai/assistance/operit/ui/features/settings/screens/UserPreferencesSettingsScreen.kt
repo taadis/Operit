@@ -84,6 +84,8 @@ fun UserPreferencesSettingsScreen(
     // 对话框状态
     var showAddProfileDialog by remember { mutableStateOf(false) }
     var newProfileName by remember { mutableStateOf("") }
+    // 新增：删除确认弹窗状态
+    var showDeleteProfileDialog by remember { mutableStateOf(false) }
 
     // 选中的配置文件
     var selectedProfileId by remember { mutableStateOf(activeProfileId) }
@@ -356,10 +358,7 @@ fun UserPreferencesSettingsScreen(
                             if (selectedProfileId != "default") {
                                 TextButton(
                                         onClick = {
-                                            scope.launch {
-                                                preferencesManager.deleteProfile(selectedProfileId)
-                                                selectedProfileId = activeProfileId
-                                            }
+                                            showDeleteProfileDialog = true
                                         },
                                         contentPadding = PaddingValues(horizontal = 12.dp),
                                         colors =
@@ -785,6 +784,41 @@ fun UserPreferencesSettingsScreen(
                         ) { Text("取消", fontSize = 13.sp) }
                     },
                     shape = RoundedCornerShape(12.dp)
+            )
+        }
+        // 新增：删除配置文件确认弹窗
+        if (showDeleteProfileDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteProfileDialog = false },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 8.dp).size(24.dp)
+                        )
+                        Text("确认删除配置")
+                    }
+                },
+                text = {
+                    Text("您确定要删除该偏好配置吗？此操作会同时删除其绑定的知识库数据，且无法恢复。\n\n建议您提前备份重要内容。")
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteProfileDialog = false
+                            scope.launch {
+                                preferencesManager.deleteProfile(selectedProfileId)
+                                selectedProfileId = activeProfileId
+                            }
+                        }
+                    ) { Text("确认删除") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteProfileDialog = false }) { Text("取消") }
+                },
+                shape = RoundedCornerShape(12.dp)
             )
         }
     }

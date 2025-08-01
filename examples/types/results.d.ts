@@ -105,6 +105,20 @@ export interface FileContentData {
 }
 
 /**
+ * File part content data
+ */
+export interface FilePartContentData {
+    path: string;
+    content: string;
+    partIndex: number;
+    totalParts: number;
+    startLine: number;
+    endLine: number;
+    totalLines: number;
+    toString(): string;
+}
+
+/**
  * File operation data
  */
 export interface FileOperationData {
@@ -112,6 +126,15 @@ export interface FileOperationData {
     path: string;
     successful: boolean;
     details: string;
+    toString(): string;
+}
+
+/**
+ * File apply result data
+ */
+export interface FileApplyResultData {
+    operation: FileOperationData;
+    aiDiffInstructions: string;
     toString(): string;
 }
 
@@ -360,6 +383,17 @@ export interface CombinedOperationResultData {
 }
 
 /**
+ * UI automation task result data
+ */
+export interface UiAutomationTaskResultData {
+    taskGoal: string;
+    finalState: string; // "completed", "interrupted"
+    finalMessage: string;
+    executedCommands: string[];
+    toString(): string;
+}
+
+/**
  * ADB command execution result data
  */
 export interface ADBResultData {
@@ -495,8 +529,16 @@ export interface FileContentResult extends BaseResult {
     data: FileContentData;
 }
 
+export interface FilePartContentResult extends BaseResult {
+    data: FilePartContentData;
+}
+
 export interface FileOperationResult extends BaseResult {
     data: FileOperationData;
+}
+
+export interface FileApplyResult extends BaseResult {
+    data: FileApplyResultData;
 }
 
 export interface HttpResponseResult extends BaseResult {
@@ -525,6 +567,10 @@ export interface UIPageResult extends BaseResult {
 
 export interface UIActionResult extends BaseResult {
     data: UIActionResultData;
+}
+
+export interface UiAutomationTaskResult extends BaseResult {
+    data: UiAutomationTaskResultData;
 }
 
 export interface FileConversionResult extends BaseResult {

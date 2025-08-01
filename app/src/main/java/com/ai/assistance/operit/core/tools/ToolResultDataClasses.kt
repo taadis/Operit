@@ -778,3 +778,55 @@ data class LocationData(
         return sb.toString()
     }
 }
+
+/** Represents the result of a UI automation task */
+@Serializable
+data class UiAutomationTaskResultData(
+    val taskGoal: String,
+    val finalState: String, // "completed", "interrupted"
+    val finalMessage: String,
+    val executedCommands: List<String>
+) : ToolResultData() {
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine("UI Automation Task Result for: '$taskGoal'")
+        sb.appendLine("Final State: $finalState")
+        sb.appendLine("Message: $finalMessage")
+        sb.appendLine("\nExecuted Commands (${executedCommands.size}):")
+        executedCommands.forEach { command ->
+            sb.appendLine("- $command")
+        }
+        return sb.toString()
+    }
+}
+
+/** Represents the result of a memory query */
+@Serializable
+data class MemoryQueryResultData(
+    val memories: List<MemoryInfo>
+) : ToolResultData() {
+
+    @Serializable
+    data class MemoryInfo(
+        val title: String,
+        val content: String,
+        val source: String,
+        val tags: List<String>,
+        val createdAt: String
+    )
+
+    override fun toString(): String {
+        if (memories.isEmpty()) {
+            return "No relevant memories found."
+        }
+        return memories.joinToString("\n---\n") { memory ->
+            """
+            Title: ${memory.title}
+            Content: ${memory.content.take(200)}...
+            Source: ${memory.source}
+            Tags: ${memory.tags.joinToString(", ")}
+            Created: ${memory.createdAt}
+            """.trimIndent()
+        }
+    }
+}

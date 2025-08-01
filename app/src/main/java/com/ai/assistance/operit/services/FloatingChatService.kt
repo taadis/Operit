@@ -39,6 +39,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 
 class FloatingChatService : Service(), FloatingWindowCallback {
     private val TAG = "FloatingChatService"
@@ -47,7 +48,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     private val NOTIFICATION_ID = 1001
     private val CHANNEL_ID = "floating_chat_channel"
 
-    private lateinit var windowState: FloatingWindowState
+    lateinit var windowState: FloatingWindowState
     private lateinit var windowManager: FloatingWindowManager
     private lateinit var prefs: SharedPreferences
     private var wakeLock: PowerManager.WakeLock? = null
@@ -156,6 +157,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                     )
             createNotificationChannel()
             startForeground(NOTIFICATION_ID, createNotification())
+
         } catch (e: Exception) {
             Log.e(TAG, "Error in onCreate", e)
             stopSelf()
@@ -421,5 +423,14 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     fun switchToMode(mode: FloatingMode) {
         windowState.currentMode.value = mode
         Log.d(TAG, "Switching to mode: $mode")
+    }
+
+    fun setWindowInteraction(enabled: Boolean) {
+        if (::windowManager.isInitialized) {
+            windowManager.setWindowInteraction(enabled)
+            Log.d(TAG, "Window interaction set to: $enabled")
+        } else {
+            Log.w(TAG, "WindowManager not initialized, cannot set interaction.")
+        }
     }
 }

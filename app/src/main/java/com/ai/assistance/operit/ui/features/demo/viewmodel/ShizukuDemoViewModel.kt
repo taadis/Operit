@@ -235,6 +235,10 @@ class ShizukuDemoViewModel(application: Application) : AndroidViewModel(applicat
         stateManager.toggleRootWizard()
     }
 
+    fun toggleAccessibilityWizard() {
+        stateManager.toggleAccessibilityWizard()
+    }
+
     fun toggleAdbCommandExecutor() {
         stateManager.toggleAdbCommandExecutor()
     }

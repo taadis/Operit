@@ -31,14 +31,15 @@ interface ChatDao {
 
     /** 更新聊天元数据 */
     @Query(
-            "UPDATE chats SET updatedAt = :timestamp, title = :title, inputTokens = :inputTokens, outputTokens = :outputTokens WHERE id = :chatId"
+            "UPDATE chats SET updatedAt = :timestamp, title = :title, inputTokens = :inputTokens, outputTokens = :outputTokens, currentWindowSize = :currentWindowSize WHERE id = :chatId"
     )
     suspend fun updateChatMetadata(
             chatId: String,
             title: String,
             timestamp: Long,
             inputTokens: Int,
-            outputTokens: Int
+            outputTokens: Int,
+            currentWindowSize: Int
     )
 
     /** 更新聊天标题 */

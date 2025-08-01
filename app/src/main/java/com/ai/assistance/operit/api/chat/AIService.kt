@@ -37,6 +37,16 @@ interface AIService {
     suspend fun sendMessage(
             message: String,
             chatHistory: List<Pair<String, String>> = emptyList(),
-            modelParameters: List<ModelParameter<*>> = emptyList()
+            modelParameters: List<ModelParameter<*>> = emptyList(),
+            enableThinking: Boolean = false,
+            onTokensUpdated: suspend (input: Int, output: Int) -> Unit = { _, _ -> },
+            onNonFatalError: suspend (error: String) -> Unit = {}
     ): Stream<String>
+
+    /**
+     * 测试与AI服务的连接
+     *
+     * @return 成功时返回成功信息，失败时返回包含错误的Result
+     */
+    suspend fun testConnection(): Result<String>
 }

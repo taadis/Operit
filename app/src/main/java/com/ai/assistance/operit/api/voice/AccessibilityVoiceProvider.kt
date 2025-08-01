@@ -126,7 +126,8 @@ class SimpleVoiceProvider(private val context: Context) : VoiceService {
             text: String,
             interrupt: Boolean,
             rate: Float,
-            pitch: Float
+            pitch: Float,
+            extraParams: Map<String, String>
     ): Boolean =
             withContext(Dispatchers.IO) {
                 // 检查初始化状态

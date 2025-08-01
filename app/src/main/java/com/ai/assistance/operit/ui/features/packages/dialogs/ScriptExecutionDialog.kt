@@ -16,6 +16,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +38,8 @@ import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import com.ai.assistance.operit.data.model.ToolResult
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -56,7 +61,13 @@ fun ScriptExecutionDialog(
     var paramValues by
             remember(tool) { mutableStateOf(tool.parameters.associate { it.name to "" }) }
     var executing by remember { mutableStateOf(false) }
-    var executionResult by remember { mutableStateOf(initialResult) }
+    var executionResults by remember { mutableStateOf<List<ToolResult>>(emptyList()) }
+
+    LaunchedEffect(initialResult) {
+        if (initialResult != null) {
+            executionResults = listOf(initialResult)
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -73,113 +84,127 @@ fun ScriptExecutionDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Script Editor
-                Text(
-                        text = "Script Code:" + ":",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                )
-
-                TextField(
-                        value = scriptText,
-                        onValueChange = { newValue -> scriptText = newValue },
-                        modifier = Modifier.fillMaxWidth().height(200.dp),
-                        textStyle =
-                                MaterialTheme.typography.bodyMedium.copy(
-                                        fontFamily = FontFamily.Monospace
-                                ),
-                        colors =
-                                TextFieldDefaults.textFieldColors(
-                                        containerColor = Color(0xFF1E1E1E),
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White,
-                                        cursorColor = Color.White,
-                                        focusedIndicatorColor = MaterialTheme.colorScheme.primary
-                                )
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Parameters
-                if (tool.parameters.isNotEmpty()) {
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    // Script Editor
                     Text(
-                            text = "Script Parameters:" + ":",
+                            text = "Script Code:" + ":",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Parameter inputs
-                    LazyColumn(
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(items = tool.parameters, key = { param -> param.name }) { param ->
-                            OutlinedTextField(
-                                    value = paramValues[param.name] ?: "",
-                                    onValueChange = { value ->
-                                        paramValues =
-                                                paramValues.toMutableMap().apply {
-                                                    put(param.name, value)
-                                                }
-                                    },
-                                    label = {
-                                        Text("${param.name}${if (param.required) " *" else ""}")
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
-                            )
-                        }
-                    }
+                    TextField(
+                            value = scriptText,
+                            onValueChange = { newValue -> scriptText = newValue },
+                            modifier = Modifier.fillMaxWidth().height(200.dp),
+                            textStyle =
+                                    MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = FontFamily.Monospace
+                                    ),
+                            colors =
+                                    TextFieldDefaults.textFieldColors(
+                                            containerColor = Color(0xFF1E1E1E),
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White,
+                                            cursorColor = Color.White,
+                                            focusedIndicatorColor = MaterialTheme.colorScheme.primary
+                                    )
+                    )
 
                     Spacer(modifier = Modifier.height(16.dp))
-                }
 
-                // Result area
-                if (executionResult != null) {
-                    Text(
-                            text = "Execution Result:" + ":",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                    )
+                    // Parameters
+                    if (tool.parameters.isNotEmpty()) {
+                        Text(
+                                text = "Script Parameters:" + ":",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                        )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    Surface(
-                            modifier =
-                                    Modifier.fillMaxWidth()
-                                            .weight(1f, fill = false)
-                                            .border(
-                                                    width = 1.dp,
-                                                    color =
-                                                            if (executionResult!!.success)
-                                                                    Color(0xFF4CAF50)
-                                                            else Color(0xFFF44336),
-                                                    shape = RoundedCornerShape(8.dp)
-                                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            color =
-                                    if (executionResult!!.success) Color(0xFFE8F5E9)
-                                    else Color(0xFFFFEBEE)
-                    ) {
-                        Box(
+                        // Parameter inputs
+                        Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            tool.parameters.forEach { param ->
+                                OutlinedTextField(
+                                        value = paramValues[param.name] ?: "",
+                                        onValueChange = { value ->
+                                            paramValues =
+                                                    paramValues.toMutableMap().apply {
+                                                        put(param.name, value)
+                                                    }
+                                        },
+                                        label = {
+                                            Text("${param.name}${if (param.required) " *" else ""}")
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    // Result area
+                    if (executionResults.isNotEmpty()) {
+                        Text(
+                                text = "Execution Results:" + ":",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        LazyColumn(
                                 modifier =
                                         Modifier.fillMaxWidth()
-                                                .verticalScroll(rememberScrollState())
+                                                .heightIn(max = 240.dp)
+                                                .border(
+                                                        width = 1.dp,
+                                                        color = MaterialTheme.colorScheme.outline,
+                                                        shape = RoundedCornerShape(8.dp)
+                                                )
+                                                .padding(vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                    text =
-                                            if (executionResult!!.success)
-                                                    executionResult!!.result.toString()
-                                            else "Error: ${executionResult!!.error}",
-                                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                                    style = MaterialTheme.typography.bodyMedium
-                            )
+                            items(executionResults) { result ->
+                                Surface(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant
+                                ) {
+                                    Row(
+                                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                                            verticalAlignment = Alignment.Top
+                                    ) {
+                                        val success = result.success
+                                        Icon(
+                                                imageVector =
+                                                        if (success) Icons.Filled.CheckCircle
+                                                        else Icons.Filled.Error,
+                                                contentDescription =
+                                                        if (success) "Success" else "Error",
+                                                tint =
+                                                        if (success) Color(0xFF4CAF50)
+                                                        else Color(0xFFF44336)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                                text =
+                                                        if (result.success) result.result.toString()
+                                                        else "Error: ${result.error}",
+                                                style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
+                            }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                 }
 
                 // Buttons
@@ -191,6 +216,7 @@ fun ScriptExecutionDialog(
                     Button(
                             onClick = {
                                 executing = true
+                                executionResults = emptyList() // Clear previous results
                                 scope.launch(Dispatchers.IO) {
                                     try {
                                         // Check for required parameters
@@ -201,17 +227,18 @@ fun ScriptExecutionDialog(
                                                         .filter { paramValues[it].isNullOrEmpty() }
 
                                         if (missingParams.isNotEmpty()) {
+                                            val missingResult =
+                                                    ToolResult(
+                                                            toolName =
+                                                                    "${packageName}:${tool.name}",
+                                                            success = false,
+                                                            result = StringResultData(""),
+                                                            error =
+                                                                    "Missing parameters: ${missingParams.joinToString(", ")}"
+                                                    )
                                             withContext(Dispatchers.Main) {
-                                                executionResult =
-                                                        ToolResult(
-                                                                toolName =
-                                                                        "${packageName}:${tool.name}",
-                                                                success = false,
-                                                                result = StringResultData(""),
-                                                                error =
-                                                                        "Missing parameters: ${missingParams.joinToString(", ")}"
-                                                        )
-                                                onExecuted(executionResult!!)
+                                                executionResults = listOf(missingResult)
+                                                onExecuted(missingResult)
                                             }
                                         } else {
                                             // Create the tool with parameters
@@ -233,19 +260,42 @@ fun ScriptExecutionDialog(
                                                             packageManager
                                                     )
 
-                                            // Execute the script - directly call the suspending
-                                            // function
-                                            // Since we're already in a coroutine context with
-                                            // Dispatchers.IO,
-                                            // we can just call the suspending function directly
-                                            val result =
-                                                    interpreter.executeScript(scriptText, aiTool)
-
-                                            // 切换回主线程更新UI
-                                            withContext(Dispatchers.Main) {
-                                                executionResult = result
-                                                onExecuted(result)
-                                            }
+                                            // Execute the script and collect results from the flow
+                                            interpreter
+                                                    .executeScript(scriptText, aiTool)
+                                                    .catch { e ->
+                                                        Log.e(
+                                                                "ScriptExecutionDialog",
+                                                                "Flow collection error",
+                                                                e
+                                                        )
+                                                        val errorResult =
+                                                                ToolResult(
+                                                                        toolName =
+                                                                                "${packageName}:${tool.name}",
+                                                                        success = false,
+                                                                        result = StringResultData(""),
+                                                                        error =
+                                                                                "Execution flow error: ${e.message}"
+                                                                )
+                                                        withContext(Dispatchers.Main) {
+                                                            executionResults =
+                                                                    executionResults + errorResult
+                                                            onExecuted(errorResult)
+                                                        }
+                                                    }
+                                                    .onCompletion {
+                                                        withContext(Dispatchers.Main) {
+                                                            executing = false
+                                                        }
+                                                    }
+                                                    .collect { result ->
+                                                        withContext(Dispatchers.Main) {
+                                                            executionResults =
+                                                                    executionResults + result
+                                                            onExecuted(result)
+                                                        }
+                                                    }
                                         }
                                     } catch (e: Exception) {
                                         Log.e(
@@ -254,9 +304,9 @@ fun ScriptExecutionDialog(
                                                 e
                                         )
 
-                                        // 切换回主线程更新UI
+                                        // Final catch-all for unexpected errors
                                         withContext(Dispatchers.Main) {
-                                            executionResult =
+                                            val finalError =
                                                     ToolResult(
                                                             toolName =
                                                                     "${packageName}:${tool.name}",
@@ -264,10 +314,10 @@ fun ScriptExecutionDialog(
                                                             result = StringResultData(""),
                                                             error = "Execution error: ${e.message}"
                                                     )
-                                            onExecuted(executionResult!!)
+                                            executionResults = executionResults + finalError
+                                            onExecuted(finalError)
                                         }
                                     } finally {
-                                        // 切换回主线程更新UI状态
                                         withContext(Dispatchers.Main) { executing = false }
                                     }
                                 }

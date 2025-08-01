@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupProperties
+import com.ai.assistance.operit.api.chat.AIServiceFactory
 import com.ai.assistance.operit.data.model.ModelConfigData
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
@@ -54,6 +55,10 @@ fun ModelConfigScreen(onBackPressed: () -> Unit = {}) {
     var newConfigName by remember { mutableStateOf("") }
     var confirmMessage by remember { mutableStateOf("") }
 
+    // 连接测试状态
+    var isTestingConnection by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<Result<String>?>(null) }
+
     // 初始化配置管理器
     LaunchedEffect(Unit) { configManager.initializeIfNeeded() }
 
@@ -69,6 +74,14 @@ fun ModelConfigScreen(onBackPressed: () -> Unit = {}) {
     LaunchedEffect(selectedConfigId) {
         configManager.getModelConfigFlow(selectedConfigId).collect { config ->
             selectedConfig.value = config
+        }
+    }
+
+    // 自动隐藏测试结果
+    LaunchedEffect(testResult) {
+        if (testResult != null) {
+            kotlinx.coroutines.delay(5000)
+            testResult = null
         }
     }
 
@@ -186,6 +199,7 @@ fun ModelConfigScreen(onBackPressed: () -> Unit = {}) {
                     Row(
                             modifier = Modifier.padding(top = 12.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                     ) {
                         // 删除按钮 - 不能删除默认配置
                         if (selectedConfigId != "default") {
@@ -211,6 +225,102 @@ fun ModelConfigScreen(onBackPressed: () -> Unit = {}) {
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("删除", fontSize = 14.sp)
+                            }
+                        }
+
+                        // 测试连接按钮
+                        TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        isTestingConnection = true
+                                        testResult = null
+                                        try {
+                                            selectedConfig.value?.let { config ->
+                                                // 异步获取自定义请求头
+                                                val customHeadersJson = apiPreferences.getCustomHeaders()
+                                                val service =
+                                                        AIServiceFactory.createService(
+                                                                apiProviderType = config.apiProviderType,
+                                                                apiEndpoint = config.apiEndpoint,
+                                                                apiKey = config.apiKey,
+                                                                modelName = config.modelName,
+                                                                customHeadersJson = customHeadersJson
+                                                        )
+                                                testResult = service.testConnection()
+                                            } ?: run {
+                                                testResult = Result.failure(Exception("未选择配置"))
+                                            }
+                                        } catch (e: Exception) {
+                                            testResult = Result.failure(e)
+                                        }
+                                        isTestingConnection = false
+                                    }
+                                },
+                                modifier = Modifier.height(36.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp)
+                        ) {
+                            if (isTestingConnection) {
+                                CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                        Icons.Default.Dns,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("测试连接", fontSize = 14.sp)
+                        }
+                    }
+
+                    // 显示测试结果
+                    AnimatedVisibility(
+                            visible = testResult != null,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                    ) {
+                        testResult?.let { result ->
+                            val isSuccess = result.isSuccess
+                            val message =
+                                    if (isSuccess) result.getOrNull() ?: "连接成功"
+                                    else "连接失败: ${result.exceptionOrNull()?.message}"
+                            val containerColor =
+                                    if (isSuccess)
+                                            MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.errorContainer
+                            val contentColor =
+                                    if (isSuccess)
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                    else MaterialTheme.colorScheme.onErrorContainer
+                            val icon =
+                                    if (isSuccess) Icons.Default.CheckCircle
+                                    else Icons.Default.Warning
+
+                            Card(
+                                    modifier =
+                                            Modifier.fillMaxWidth().padding(top = 12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = containerColor),
+                                    shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = contentColor
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                            text = message,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = contentColor
+                                    )
+                                }
                             }
                         }
                     }
@@ -271,30 +381,10 @@ fun ModelConfigScreen(onBackPressed: () -> Unit = {}) {
                                 leadingIcon =
                                         if (isSelected) {
                                             {
-                                                Box(
-                                                        modifier =
-                                                        Modifier.size(8.dp)
-                                                                .background(
-                                                                        MaterialTheme
-                                                                                .colorScheme
-                                                                                .primary,
-                                                                        CircleShape
-                                                                )
-                                                )
-                                            }
-                                        } else null,
-                                trailingIcon =
-                                        if (isSelected) {
-                                            {
-                                                Box(
-                                                        modifier =
-                                                        Modifier.size(8.dp)
-                                                                .background(
-                                                                        MaterialTheme
-                                                                                .colorScheme
-                                                                                .primary,
-                                                                        CircleShape
-                                                                )
+                                                Icon(
+                                                        Icons.Default.Check,
+                                                        contentDescription = "Selected",
+                                                        modifier = Modifier.size(16.dp)
                                                 )
                                             }
                                         } else null,

@@ -62,7 +62,6 @@ fun AttachmentSelectorPanel(
         onAttachScreenContent: () -> Unit,
         onAttachNotifications: () -> Unit = {},
         onAttachLocation: () -> Unit = {},
-        onAttachProblemMemory: (String, String) -> Unit = { _, _ -> },
         userQuery: String = "",
         onDismiss: () -> Unit
 ) {
@@ -204,41 +203,6 @@ fun AttachmentSelectorPanel(
                             label = "当前位置",
                             onClick = {
                                 onAttachLocation()
-                                onDismiss()
-                            }
-                    )
-
-                    // 问题记忆选项
-                    AttachmentOption(
-                            icon = Icons.Default.Memory,
-                            label = "问题记忆",
-                            onClick = {
-                                // 使用用户查询通过AttachmentManager查询问题库
-                                if (userQuery.isNotBlank()) {
-                                    coroutineScope.launch(Dispatchers.IO) {
-                                        try {
-                                            // 使用AttachmentManager查询问题记忆
-                                            val (content, filename) =
-                                                    attachmentManager.queryProblemMemory(userQuery)
-
-                                            // 在主线程中回调传递结果
-                                            kotlinx.coroutines.withContext(
-                                                    kotlinx.coroutines.Dispatchers.Main
-                                            ) { onAttachProblemMemory(content, filename) }
-                                        } catch (e: Exception) {
-                                            Log.e("AttachmentSelector", "查询问题记忆失败", e)
-                                            // 在主线程中回调传递错误信息
-                                            kotlinx.coroutines.withContext(
-                                                    kotlinx.coroutines.Dispatchers.Main
-                                            ) {
-                                                onAttachProblemMemory(
-                                                        "查询问题记忆失败: ${e.message}",
-                                                        "查询错误.txt"
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
                                 onDismiss()
                             }
                     )

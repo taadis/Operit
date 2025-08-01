@@ -51,7 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.ai.assistance.operit.api.chat.library.ProblemLibraryTool
+import com.ai.assistance.operit.data.legacy.LegacyProblemImporterExporter
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import com.google.gson.GsonBuilder
@@ -90,7 +90,7 @@ fun ChatHistorySettingsScreen() {
     val snackbarHostState = remember { SnackbarHostState() }
 
     val chatHistoryManager = remember { ChatHistoryManager.getInstance(context) }
-    val problemLibraryTool = remember { ProblemLibraryTool.getInstance(context) }
+    val legacyProblemHandler = remember { LegacyProblemImporterExporter(context) }
 
     var totalChatCount by remember { mutableStateOf(0) }
     var totalProblemCount by remember { mutableStateOf(0) }
@@ -150,7 +150,7 @@ fun ChatHistorySettingsScreen() {
                         scope.launch {
                             operationState = ChatHistoryOperation.IMPORTING_PROBLEMS
                             try {
-                                val importResult = importProblemsFromUri(context, uri)
+                                val importResult = legacyProblemHandler.importProblems(context, uri)
                                 if (importResult.total > 0) {
                                     importedCount = importResult.total
                                     operationState = ChatHistoryOperation.IMPORTED_PROBLEMS
@@ -186,8 +186,9 @@ fun ChatHistorySettingsScreen() {
 
     // 获取问题库数量
     LaunchedEffect(Unit) {
-        val problems = problemLibraryTool.getAllProblemRecords()
-        totalProblemCount = problems.size
+        scope.launch {
+            totalProblemCount = legacyProblemHandler.getProblemCount()
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
@@ -395,19 +396,17 @@ fun ChatHistorySettingsScreen() {
                                         scope.launch {
                                             operationState = ChatHistoryOperation.EXPORTING_PROBLEMS
                                             try {
-                                                val filePath = exportProblems(context)
+                                                val filePath = legacyProblemHandler.exportProblems(context)
                                                 if (filePath != null) {
                                                     exportedFilePath = filePath
                                                     operationState =
                                                             ChatHistoryOperation.EXPORTED_PROBLEMS
-                                                    val problems =
-                                                            problemLibraryTool
-                                                                    .getAllProblemRecords()
+                                                    val problemCount = legacyProblemHandler.getProblemCount()
                                                     operationMessage =
-                                                            "成功导出 ${problems.size} 条问题库记录到：\n$filePath"
+                                                            "成功导出 $problemCount 条问题库记录到：\n$filePath"
                                                 } else {
                                                     operationState = ChatHistoryOperation.FAILED
-                                                    operationMessage = "导出失败：无法创建文件"
+                                                    operationMessage = "导出失败：问题库为空或无法创建文件"
                                                 }
                                             } catch (e: Exception) {
                                                 e.printStackTrace()
@@ -651,7 +650,7 @@ fun ChatHistorySettingsScreen() {
                                 scope.launch {
                                     operationState = ChatHistoryOperation.DELETING
                                     try {
-                                        val deletedCount = deleteAllProblems(context)
+                                        val deletedCount = legacyProblemHandler.deleteAllProblems()
                                         operationState = ChatHistoryOperation.DELETED
                                         operationMessage = "成功清除 $deletedCount 条问题库记录"
                                     } catch (e: Exception) {
@@ -914,142 +913,4 @@ private suspend fun deleteAllChatHistories(context: Context): Int =
             }
         }
 
-// 导出问题库
-private suspend fun exportProblems(context: Context): String? =
-        withContext(Dispatchers.IO) {
-            try {
-                // 获取问题库工具
-                val problemLibraryTool = ProblemLibraryTool.getInstance(context)
-
-                // 获取所有问题库记录
-                val problems = problemLibraryTool.getAllProblemRecords()
-
-                // 准备导出目录
-                val downloadDir =
-                        Environment.getExternalStoragePublicDirectory(
-                                Environment.DIRECTORY_DOWNLOADS
-                        )
-                val exportDir = File(downloadDir, "Operit")
-                if (!exportDir.exists()) {
-                    exportDir.mkdirs()
-                }
-
-                // 创建导出文件名
-                val dateFormat = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault())
-                val timestamp = dateFormat.format(Date())
-                val exportFile = File(exportDir, "problem_library_backup_$timestamp.json")
-
-                // 使用Gson序列化问题库记录
-                val gson =
-                        GsonBuilder()
-                                .setDateFormat("yyyy-MM-dd'T'HH:mm:ss")
-                                .setPrettyPrinting()
-                                .create()
-
-                // 写入文件
-                val jsonString = gson.toJson(problems)
-                exportFile.writeText(jsonString)
-
-                return@withContext exportFile.absolutePath
-            } catch (e: Exception) {
-                e.printStackTrace()
-                return@withContext null
-            }
-        }
-
-// 从URI导入问题库
-private suspend fun importProblemsFromUri(context: Context, uri: Uri): ImportResult =
-        withContext(Dispatchers.IO) {
-            try {
-                // 获取问题库工具
-                val problemLibraryTool = ProblemLibraryTool.getInstance(context)
-
-                // 读取URI内容
-                val inputStream =
-                        context.contentResolver.openInputStream(uri)
-                                ?: return@withContext ImportResult(0, 0, 0)
-                val jsonString = inputStream.bufferedReader().use { it.readText() }
-                inputStream.close()
-
-                if (jsonString.isBlank()) {
-                    throw Exception("导入的文件为空")
-                }
-
-                // 解析JSON
-                val problems =
-                        try {
-                            // 使用Gson解析
-                            val gson = GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm:ss").create()
-                            val type =
-                                    object : TypeToken<List<ProblemLibraryTool.ProblemRecord>>() {}
-                                            .type
-                            gson.fromJson<List<ProblemLibraryTool.ProblemRecord>>(jsonString, type)
-                        } catch (e: Exception) {
-                            Log.e("ProblemLibrarySettings", "使用Gson解析失败", e)
-                            throw Exception("无法解析备份文件：${e.message}\n备份文件可能已损坏或格式不兼容")
-                        }
-
-                if (problems.isEmpty()) {
-                    return@withContext ImportResult(0, 0, 0)
-                }
-
-                // 获取现有记录ID，用于检查冲突
-                val existingProblems = problemLibraryTool.getAllProblemRecords()
-                val existingIds = existingProblems.map { it.uuid }.toSet()
-
-                // 分类统计
-                var newCount = 0 // 新导入数量
-                var updatedCount = 0 // 更新数量
-                var skippedCount = 0 // 跳过数量（无效记录）
-
-                // 保存到数据库
-                for (problem in problems) {
-                    // 验证记录有效性
-                    if (problem.query.isBlank() || problem.solution.isBlank()) {
-                        skippedCount++
-                        continue
-                    }
-
-                    // 检查是否已存在
-                    if (existingIds.contains(problem.uuid)) {
-                        // 更新现有记录
-                        updatedCount++
-                    } else {
-                        // 新导入记录
-                        newCount++
-                    }
-
-                    // 保存或更新记录
-                    problemLibraryTool.saveProblemRecord(problem)
-                }
-
-                // 返回导入结果
-                return@withContext ImportResult(newCount, updatedCount, skippedCount)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                throw e
-            }
-        }
-
-// 删除所有问题库记录
-private suspend fun deleteAllProblems(context: Context): Int =
-        withContext(Dispatchers.IO) {
-            try {
-                // 获取问题库工具
-                val problemLibraryTool = ProblemLibraryTool.getInstance(context)
-
-                // 获取所有问题库记录
-                val problems = problemLibraryTool.getAllProblemRecords()
-                val count = problems.size
-
-                // 删除每个问题库记录
-                for (problem in problems) {
-                    problemLibraryTool.deleteProblemRecord(problem.uuid)
-                }
-
-                return@withContext count
-            } catch (e: Exception) {
-                e.printStackTrace()
-                throw e
-            }
-        }
+// No longer need problem-related functions here, they are in LegacyProblemImporterExporter

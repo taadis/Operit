@@ -34,6 +34,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.ai.assistance.operit.core.subpack.ApkEditor
 import com.ai.assistance.operit.core.subpack.ExeEditor
 import com.ai.assistance.operit.core.subpack.KeyStoreHelper
+import com.ai.assistance.operit.ui.common.rememberLocal
+import com.ai.assistance.operit.util.UriSerializer
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -151,9 +153,9 @@ fun AndroidExportDialog(
         onDismiss: () -> Unit,
         onExport: (packageName: String, appName: String, iconUri: Uri?) -> Unit
 ) {
-    var packageName by remember { mutableStateOf("com.example.webproject") }
-    var appName by remember { mutableStateOf("Web Project") }
-    var iconUri by remember { mutableStateOf<Uri?>(null) }
+    var packageName by rememberLocal(key = "export_package_name_${workDir.absolutePath}", "com.example.webproject")
+    var appName by rememberLocal(key = "export_app_name_${workDir.absolutePath}", "Web Project")
+    var iconUri by rememberLocal<Uri?>(key = "export_icon_uri_${workDir.absolutePath}", null, serializer = UriSerializer)
 
     val context = LocalContext.current
     val imagePicker =

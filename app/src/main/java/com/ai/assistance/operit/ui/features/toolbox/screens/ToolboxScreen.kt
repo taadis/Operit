@@ -76,7 +76,8 @@ fun ToolboxScreen(
         onMarkdownDemoSelected: () -> Unit,
         onTextToSpeechSelected: () -> Unit,
         onSpeechToTextSelected: () -> Unit,
-        onToolTesterSelected: () -> Unit
+        onToolTesterSelected: () -> Unit,
+        onAgreementSelected: () -> Unit
 ) {
         // 屏幕配置信息，用于响应式布局
         val configuration = LocalConfiguration.current
@@ -131,6 +132,20 @@ fun ToolboxScreen(
                                 onClick = onSpeechToTextSelected
                         ),
                         Tool(
+                                name = "应用权限管理",
+                                icon = Icons.Rounded.Security,
+                                description = "管理手机各个应用的权限，保护隐私安全",
+                                category = ToolCategory.SYSTEM,
+                                onClick = onAppPermissionsSelected
+                        ),
+                        Tool(
+                                name = "用户协议",
+                                icon = Icons.Default.Policy,
+                                description = "查看应用的用户协议与隐私政策",
+                                category = ToolCategory.SYSTEM,
+                                onClick = onAgreementSelected
+                        ),
+                        Tool(
                                 name = "命令终端",
                                 icon = Icons.Rounded.Terminal,
                                 description = "功能强大的命令行终端，执行系统指令",
@@ -143,13 +158,6 @@ fun ToolboxScreen(
                                 description = "自动安装配置Python、PIP等开发工具",
                                 category = ToolCategory.DEVELOPMENT,
                                 onClick = onTerminalAutoConfigSelected
-                        ),
-                        Tool(
-                                name = "应用权限管理",
-                                icon = Icons.Rounded.Security,
-                                description = "管理手机各个应用的权限，保护隐私安全",
-                                category = ToolCategory.SYSTEM,
-                                onClick = onAppPermissionsSelected
                         ),
                         Tool(
                                 name = "UI调试工具",
