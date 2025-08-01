@@ -54,6 +54,35 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
         }
     )
 
+    handler.registerTool(
+        name = "automate_web_task",
+        category = ToolCategory.UI_AUTOMATION,
+        dangerCheck = { true }, // High danger as it performs autonomous actions
+        descriptionGenerator = { tool ->
+            val taskGoal = tool.parameters.find { it.name == "task_goal" }?.value ?: ""
+            "Executes a web automation task: $taskGoal"
+        },
+        executor = object : ToolExecutor {
+            override fun invoke(tool: AITool): ToolResult {
+                return runBlocking {
+                    val flow = invokeAndStream(tool)
+                    val resultsList = flow.toList()
+                    resultsList.lastOrNull() ?: ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "Web automation task did not produce any result."
+                    )
+                }
+            }
+
+            override fun invokeAndStream(tool: AITool): kotlinx.coroutines.flow.Flow<ToolResult> {
+                val computerTools = ToolGetter.getComputerDesktopTools(context)
+                return computerTools.automateWebTask(tool)
+            }
+        }
+    )
+
     // 不在提示词加入的工具
     handler.registerTool(
             name = "execute_shell",
@@ -848,5 +877,106 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             category = ToolCategory.FILE_READ,
             descriptionGenerator = { _ -> "获取支持的文件转换格式" },
             executor = { tool -> fileConverterTool.invoke(tool) }
+    )
+
+    // AI电脑桌面工具
+    val computerDesktopTools = ToolGetter.getComputerDesktopTools(context)
+
+    handler.registerTool(
+        name = "computer_get_tabs",
+        category = ToolCategory.UI_AUTOMATION,
+        descriptionGenerator = { "获取所有打开的电脑标签页" },
+        executor = { tool -> runBlocking { computerDesktopTools.executeTool(tool) } }
+    )
+
+    handler.registerTool(
+        name = "computer_switch_to_tab",
+        category = ToolCategory.UI_AUTOMATION,
+        descriptionGenerator = { tool ->
+            val tabId = tool.parameters.find { it.name == "tab_id" }?.value
+            val tabIndex = tool.parameters.find { it.name == "tab_index" }?.value
+            "切换到电脑标签页: ${tabId ?: tabIndex}"
+        },
+        executor = { tool -> runBlocking { computerDesktopTools.executeTool(tool) } }
+    )
+
+    handler.registerTool(
+        name = "computer_open_desktop",
+        category = ToolCategory.UI_AUTOMATION,
+        descriptionGenerator = { "打开一个新的电脑桌面主页标签" },
+        executor = { tool -> runBlocking { computerDesktopTools.executeTool(tool) } }
+    )
+
+    handler.registerTool(
+        name = "computer_await_page_load",
+        category = ToolCategory.UI_AUTOMATION,
+        descriptionGenerator = { "等待电脑页面加载完成" },
+        executor = { tool -> runBlocking { computerDesktopTools.awaitPageLoaded(tool) } }
+    )
+
+    handler.registerTool(
+        name = "computer_go_back",
+        category = ToolCategory.UI_AUTOMATION,
+        descriptionGenerator = { "返回电脑浏览器中的上一个页面" },
+        executor = { tool -> runBlocking { computerDesktopTools.executeTool(tool) } }
+    )
+
+    handler.registerTool(
+        name = "computer_open_browser",
+        category = ToolCategory.UI_AUTOMATION,
+        descriptionGenerator = { tool ->
+            val url = tool.parameters.find { it.name == "url" }?.value
+            "在电脑中打开一个新的浏览器标签" + (if (url != null) "，访问URL: $url" else "")
+        },
+        executor = { tool -> runBlocking { computerDesktopTools.executeTool(tool) } }
+    )
+
+    handler.registerTool(
+        name = "computer_get_page_info",
+        category = ToolCategory.UI_AUTOMATION,
+        descriptionGenerator = { "获取电脑当前页面的可交互元素信息" },
+        executor = { tool -> runBlocking { computerDesktopTools.executeTool(tool) } }
+    )
+
+    handler.registerTool(
+        name = "computer_click_element",
+        category = ToolCategory.UI_AUTOMATION,
+        descriptionGenerator = { tool ->
+            val interaction_id = tool.parameters.find { it.name == "interaction_id" }?.value
+            "点击电脑页面上的元素: ID $interaction_id"
+        },
+        executor = { tool -> runBlocking { computerDesktopTools.executeTool(tool) } }
+    )
+
+    handler.registerTool(
+        name = "computer_scroll_by",
+        category = ToolCategory.UI_AUTOMATION,
+        descriptionGenerator = { tool ->
+            val x = tool.parameters.find { it.name == "x" }?.value
+            val y = tool.parameters.find { it.name == "y" }?.value
+            "在电脑当前激活的标签页中，滚动页面，x: $x, y: $y"
+        },
+        executor = { tool -> runBlocking { computerDesktopTools.executeTool(tool) } }
+    )
+
+    handler.registerTool(
+        name = "computer_input_text",
+        category = ToolCategory.UI_AUTOMATION,
+        descriptionGenerator = { tool ->
+            val interaction_id = tool.parameters.find { it.name == "interaction_id" }?.value
+            "在电脑页面上的输入框中输入文本: ID $interaction_id"
+        },
+        executor = { tool -> runBlocking { computerDesktopTools.executeTool(tool) } }
+    )
+
+    handler.registerTool(
+        name = "computer_close_tab",
+        category = ToolCategory.UI_AUTOMATION,
+        descriptionGenerator = { tool ->
+            val tabId = tool.parameters.find { it.name == "tab_id" }?.value
+            val tabIndex = tool.parameters.find { it.name == "tab_index" }?.value
+            "关闭指定的电脑标签页: ${tabId ?: tabIndex}"
+        },
+        executor = { tool -> runBlocking { computerDesktopTools.executeTool(tool) } }
     )
 }

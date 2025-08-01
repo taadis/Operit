@@ -32,6 +32,7 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import com.ai.assistance.operit.core.tools.ComputerDesktopActionResultData
 
 /** Represents the result of a single step in a UI automation task. */
 data class AutomationStepResult(
@@ -909,6 +910,209 @@ Provide the next action as a single JSON object.
         }
 
         return ChatUtils.removeThinkingContent(contentBuilder.toString().trim())
+    }
+
+    /**
+     * Gets a web control command from the specialized AI model for web automation.
+     *
+     * @param webState A description of the current web page elements.
+     * @param taskGoal The objective for the current step.
+     * @param history A list of previous commands and their outcomes.
+     * @param multiServiceManager The service manager for AI communication.
+     * @return A raw string response from the AI, expected to be a JSON object.
+     */
+    suspend fun getWebControllerCommand(
+        webState: String,
+        taskGoal: String,
+        history: List<Pair<String, String>>,
+        multiServiceManager: MultiServiceManager
+    ): String {
+        val systemPrompt = """
+        You are a Web automation AI. Your task is to analyze the web page state and task goal, then decide on the next single action. You must return a single JSON object containing your reasoning and the tool to execute.
+
+        **Output format:**
+        - A single, raw JSON object: `{"explanation": "Your reasoning for the action.", "tool": {"name": "tool_name", "parameters": [...]}}`.
+        - NO MARKDOWN or other text outside the JSON.
+
+        **'explanation' field:**
+        - A concise, one-sentence description of what you are about to do and why. Example: "Clicking the 'Login' button to proceed to the login page."
+        - For `complete` or `interrupt` actions, this field should explain the reason.
+
+        **'tool' field:**
+        - An object containing the `name` of the tool and its `parameters`.
+        - Available `name` values:
+            - **Web Interaction**: `computer_click_element`, `computer_input_text`.
+            - **Navigation**: `computer_open_browser`, `computer_go_back`.
+            - **Tab Management**: `computer_close_tab`, `computer_switch_to_tab`.
+            - **Task Control**: `complete`, `interrupt`.
+        - `parameters` format is a list of objects: `[{"name": "param_name", "value": "param_value"}]`.
+            - `computer_go_back` takes no parameters. Note that this might close the tab if it was opened by a script.
+            - `computer_close_tab` and `computer_switch_to_tab` require either `tab_id` or `tab_index`.
+
+        **Inputs:**
+        1.  `Current Web Page State`: This provides the full context, including a list of all open tabs (with the active one marked) and a simplified tree of interactable elements on the active page.
+        2.  `Task Goal`: The specific objective for this step.
+        3.  `Execution History`: A log of your previous actions and their outcomes. Analyze it to avoid repeating mistakes.
+
+        Analyze the inputs, choose the best action to achieve the `Task Goal`, and formulate your response in the specified JSON format. Use the `interaction_id` to target elements for actions.
+        """.trimIndent()
+
+        val userPrompt = """
+        **Current Web Page State:**
+        ```
+        $webState
+        ```
+
+        **Task Goal:**
+        "$taskGoal"
+
+        **Execution History:**
+        ```
+        $history
+        ```
+
+        Provide the next action as a single JSON object.
+        """.trimIndent()
+
+        val modelParameters = runBlocking { apiPreferences.getAllModelParameters() }
+        val webControllerService =
+            multiServiceManager.getServiceForFunction(FunctionType.UI_CONTROLLER)
+
+        val contentBuilder = StringBuilder()
+        webControllerService.sendMessage(
+            message = userPrompt,
+            chatHistory = listOf(Pair("system", systemPrompt)),
+            modelParameters = modelParameters
+        ).collect { content -> contentBuilder.append(content) }
+
+        try {
+            val inputTokens = webControllerService.inputTokenCount
+            val outputTokens = webControllerService.outputTokenCount
+            Log.d(TAG, "Web Controller used input tokens: $inputTokens, output tokens: $outputTokens")
+            apiPreferences.updatePreferenceAnalysisTokens(inputTokens, outputTokens)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update token stats for Web Controller", e)
+        }
+
+        return ChatUtils.removeThinkingContent(contentBuilder.toString().trim())
+    }
+
+        /**
+     * Executes a full web automation task by repeatedly querying the web sub-agent and executing its commands.
+     *
+     * @param taskGoal The high-level goal for the entire task.
+     * @param multiServiceManager The service manager to get the correct AI service.
+     * @param toolHandler The handler to execute UI commands.
+     * @return A Flow of automation step results.
+     */
+    suspend fun executeWebAutomationTask(
+        taskGoal: String,
+        multiServiceManager: MultiServiceManager,
+        toolHandler: AIToolHandler
+    ): Flow<AutomationStepResult> = flow {
+        val executionHistory = mutableListOf<Pair<String, String>>()
+        val maxAttempts = 10
+        var loopShouldBreak = false
+
+        for (attempt in 1..maxAttempts) {
+            if (loopShouldBreak) break
+
+            // 1. Get current web page state
+            val pageInfoResult = toolHandler.executeTool(AITool("computer_get_page_info", emptyList()))
+            if (!pageInfoResult.success || pageInfoResult.result !is ComputerDesktopActionResultData) {
+                emit(AutomationStepResult("Failed to get web page state.", UiControllerCommand("interrupt", "Failed to get web page state."), null))
+                break
+            }
+            val resultData = pageInfoResult.result as ComputerDesktopActionResultData
+            val webStateBuilder = StringBuilder()
+
+            // Append tab information to the state
+            resultData.tabs?.let { tabs ->
+                webStateBuilder.appendLine("Open Tabs (${tabs.size}):")
+                tabs.forEachIndexed { index, tab ->
+                    webStateBuilder.appendLine("- [${if (tab.isActive) "*" else " "}] Tab ${index} (ID: ${tab.id}): ${tab.title} - ${tab.url}")
+                }
+                webStateBuilder.appendLine()
+            }
+
+            // Append page content information
+            webStateBuilder.appendLine("--- Active Page Content ---")
+            webStateBuilder.append(resultData.pageContent?.toTreeString() ?: "Page is empty or content could not be retrieved.")
+
+            val webState = webStateBuilder.toString()
+
+            // 2. Get next command from the sub-agent
+            var commandJson = getWebControllerCommand(
+                webState,
+                taskGoal,
+                executionHistory,
+                multiServiceManager
+            )
+
+            Log.d(TAG, "Web sub-agent command response (attempt $attempt): $commandJson")
+
+            // Attempt to extract JSON from markdown code blocks
+            if (commandJson.contains("```")) {
+                val startIndex = commandJson.indexOf('{')
+                val endIndex = commandJson.lastIndexOf('}')
+                if (startIndex != -1 && endIndex != -1 && startIndex < endIndex) {
+                    commandJson = commandJson.substring(startIndex, endIndex + 1)
+                }
+            }
+
+            try {
+                val responseJson = JSONObject(commandJson)
+                val explanation = responseJson.getString("explanation")
+                val toolJson = responseJson.getJSONObject("tool")
+                val toolName = toolJson.getString("name")
+
+                if (toolName == "complete" || toolName == "interrupt") {
+                    emit(AutomationStepResult(explanation, UiControllerCommand(toolName, ""), null))
+                    loopShouldBreak = true
+                    continue
+                }
+
+                val parameters = toolJson.getJSONArray("parameters")
+                val toolParams = mutableListOf<ToolParameter>()
+                for (i in 0 until parameters.length()) {
+                    val param = parameters.getJSONObject(i)
+                    toolParams.add(ToolParameter(param.getString("name"), param.getString("value")))
+                }
+
+                val toolToExecute = AITool(toolName, toolParams)
+                emit(AutomationStepResult(explanation, UiControllerCommand(toolName, toolParams.associate { it.name to it.value }), null))
+                executionHistory.add(Pair("action", explanation))
+
+                // 3. Execute the command
+                val result = toolHandler.executeTool(toolToExecute)
+                val outcome = if (result.success) "Success. ${result.result}" else "Failed. ${result.error}"
+                executionHistory.add(Pair("outcome", outcome))
+
+                if (!result.success) {
+                    emit(AutomationStepResult("Action failed: ${result.error}", UiControllerCommand("interrupt", "Action failed: ${result.error}"), null))
+                    loopShouldBreak = true
+                } else {
+                    // After a successful action that might navigate, wait for the page to load.
+                    if (toolName == "computer_open_browser" || toolName == "computer_click_element" || toolName == "computer_go_back") {
+                        Log.d(TAG, "Navigation action successful, waiting for page to load...")
+                        val awaitResult = toolHandler.executeTool(AITool("computer_await_page_load", emptyList()))
+                        if (!awaitResult.success) {
+                            emit(AutomationStepResult("Page failed to load after action.", UiControllerCommand("interrupt", "Page failed to load after action."), null))
+                            loopShouldBreak = true
+                        }
+                    }
+                }
+
+            } catch (e: JSONException) {
+                val errorMessage = "Failed to parse web sub-agent JSON response: $commandJson"
+                Log.e(TAG, errorMessage, e)
+                executionHistory.add(Pair("error", errorMessage))
+            }
+        }
+
+        if (!loopShouldBreak) {
+            emit(AutomationStepResult("Reached max attempts ($maxAttempts).", UiControllerCommand("interrupt", "Reached max attempts."), null))
+        }
     }
 
     /**

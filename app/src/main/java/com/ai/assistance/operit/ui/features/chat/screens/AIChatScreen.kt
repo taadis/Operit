@@ -564,16 +564,15 @@ fun AIChatScreen(
                 )
             }
         ) { measurables, constraints ->
-            if (showAiComputer) {
-                // When visible, measure and place the content.
-                val placeable = measurables.first().measure(constraints)
-                layout(placeable.width, placeable.height) {
+            val placeable = measurables.first().measure(constraints)
+            layout(placeable.width, placeable.height) {
+                if (showAiComputer) {
+                    // When visible, place it on-screen.
                     placeable.placeRelative(0, 0)
+                } else {
+                    // When not visible, place it off-screen to keep it alive but invisible.
+                    placeable.placeRelative(-placeable.width, -placeable.height)
                 }
-            } else {
-                // When not visible, we compose it but don't measure or place it.
-                // It occupies no space and is not drawn, but its state is preserved.
-                layout(0, 0) {}
             }
         }
 
@@ -601,20 +600,19 @@ fun AIChatScreen(
                 }
             }
         ) { measurables, constraints ->
-            if (showWebView) {
-                // When visible, measure and place the content.
-                if (measurables.isNotEmpty()) {
-                    val placeable = measurables.first().measure(constraints)
-                    layout(placeable.width, placeable.height) {
-                        placeable.placeRelative(0, 0)
-                    }
-                } else {
-                    layout(0, 0) {}
-                }
-            } else {
-                // When not visible, we compose it but don't measure or place it.
-                // It occupies no space and is not drawn, but its state is preserved.
+            if (measurables.isEmpty()) {
                 layout(0, 0) {}
+            } else {
+                val placeable = measurables.first().measure(constraints)
+                layout(placeable.width, placeable.height) {
+                    if (showWebView) {
+                        // When visible, place it on-screen.
+                        placeable.placeRelative(0, 0)
+                    } else {
+                        // When not visible, place it off-screen to keep it alive but invisible.
+                        placeable.placeRelative(-placeable.width, -placeable.height)
+                    }
+                }
             }
         }
 

@@ -800,6 +800,87 @@ data class UiAutomationTaskResultData(
     }
 }
 
+/** Represents the result of a web automation task */
+@Serializable
+data class WebAutomationTaskResultData(
+    val taskGoal: String,
+    val finalState: String, // "completed", "interrupted"
+    val finalMessage: String,
+    val executedCommands: List<String>
+) : ToolResultData() {
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine("Web Automation Task Result for: '$taskGoal'")
+        sb.appendLine("Final State: $finalState")
+        sb.appendLine("Message: $finalMessage")
+        sb.appendLine("\nExecuted Commands (${executedCommands.size}):")
+        executedCommands.forEach { command ->
+            sb.appendLine("- $command")
+        }
+        return sb.toString()
+    }
+}
+
+/** Represents a simplified HTML node for computer desktop actions, focusing on interactability */
+@Serializable
+data class ComputerPageInfoNode(
+    val interactionId: Int?,
+    val type: String, // e.g., "container", "button", "link", "text", "input"
+    val description: String,
+    val children: List<ComputerPageInfoNode>
+) {
+    fun toTreeString(level: Int = 0): String {
+        val indent = "  ".repeat(level)
+        val idPrefix = interactionId?.let { "($it) " } ?: ""
+        val typePrefix = if (type != "container" && type != "text") "▶ $type: " else ""
+        val selfStr = "$indent$idPrefix$typePrefix'${description.trim()}'"
+
+        val childrenStr = if (children.isNotEmpty()) {
+            "\n" + children.joinToString("\n") { it.toTreeString(level + 1) }
+        } else {
+            ""
+        }
+        return selfStr + childrenStr
+    }
+}
+
+
+/** Represents the result of a computer desktop action */
+@Serializable
+data class ComputerDesktopActionResultData(
+    val action: String,
+    val target: String? = null,
+    val resultSummary: String,
+    val tabs: List<ComputerTabInfo>? = null,
+    val pageContent: ComputerPageInfoNode? = null
+) : ToolResultData() {
+    @Serializable
+    data class ComputerTabInfo(
+        val id: String,
+        val title: String,
+        val url: String,
+        val isActive: Boolean
+    )
+
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.appendLine("Computer Desktop Action: '$action'")
+        target?.let { sb.appendLine("Target: $it") }
+        sb.appendLine("Result: $resultSummary")
+        tabs?.let {
+            sb.appendLine("\nOpen Tabs (${it.size}):")
+            it.forEach { tab ->
+                sb.appendLine("- [${if (tab.isActive) "*" else " "}] ${tab.title} (${tab.url})")
+            }
+        }
+        pageContent?.let {
+            sb.appendLine("\n--- Page Content (Interactable Elements marked with ▶) ---")
+            sb.append(it.toTreeString())
+        }
+        return sb.toString()
+    }
+}
+
 /** Represents the result of a memory query */
 @Serializable
 data class MemoryQueryResultData(

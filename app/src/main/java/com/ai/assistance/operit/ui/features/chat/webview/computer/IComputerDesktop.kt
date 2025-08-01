@@ -18,15 +18,21 @@ interface IComputerDesktop {
     suspend fun getCurrentPageHtml(): String?
 
     /** 在当前激活的标签页中，根据CSS选择器点击一个元素 */
-    fun clickElement(selector: String)
+    suspend fun clickElement(selector: String): Pair<Boolean, String>
 
     /** 在当前激活的标签页中，滚动页面 */
     fun scrollBy(x: Int, y: Int)
 
     /** 在当前激活的标签页中，向指定选择器的输入框输入文本 */
-    fun inputText(selector: String, text: String)
+    suspend fun inputText(selector: String, text: String): Pair<Boolean, String>
 
     /** 关闭指定的标签页 */
     fun closeTab(tabId: String)
     fun closeTab(index: Int)
+
+    /** 等待当前页面加载完成 */
+    suspend fun awaitPageLoaded(timeoutMillis: Long): Boolean
+
+    /** 返回到前一个页面 */
+    fun goBack()
 } 

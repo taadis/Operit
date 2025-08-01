@@ -78,7 +78,7 @@ fun WorkspaceManager(
                         }
                         false
                     }
-                    webViewHandler.configureWebView(this, WebViewHandler.WebViewMode.WORKSPACE)
+                    webViewHandler.configureWebView(this, WebViewHandler.WebViewMode.WORKSPACE, "workspace_preview_webview")
                     loadUrl("http://localhost:8093")
                 }
             }
@@ -298,7 +298,11 @@ fun WorkspaceManager(
                         if (fileInfo.isHtml && isPreviewMode) {
                             // HTML文件的预览模式也使用WebView
                             AndroidView(
-                                    factory = { context -> WebView(context) },
+                                    factory = { context ->
+                                        WebView(context).apply {
+                                            webViewHandler.configureWebView(this, WebViewHandler.WebViewMode.WORKSPACE, "workspace_file_preview_${fileInfo.path}")
+                                        }
+                                     },
                                     update = { webView ->
                                         val baseUrl = "file://${File(fileInfo.path).parent}/"
                                         webView.loadDataWithBaseURL(

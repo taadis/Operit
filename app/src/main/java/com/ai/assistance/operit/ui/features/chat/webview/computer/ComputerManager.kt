@@ -93,7 +93,7 @@ fun ComputerManager(
 
                 var showMenu by remember { mutableStateOf(false) }
 
-                IconButton(onClick = { manager.openBrowser() }) {
+                IconButton(onClick = { manager.openDesktop() }) {
                     Icon(Icons.Default.Add, contentDescription = "New Tab")
                 }
 

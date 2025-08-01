@@ -60,6 +60,9 @@ class WebViewHandler(private val context: Context) {
 
     // 用于报告页面标题的回调
     var onTitleReceived: ((title: String?) -> Unit)? = null
+    var onPageStarted: ((tabId: String) -> Unit)? = null
+    var onPageFinished: ((tabId: String) -> Unit)? = null
+
 
     // 通过JavaScript接口处理Blob/Base64数据下载
     private inner class BlobDownloadInterface {
@@ -117,7 +120,7 @@ class WebViewHandler(private val context: Context) {
     }
 
     // 配置WebView的所有设置
-    fun configureWebView(webView: WebView, mode: WebViewMode): WebView {
+    fun configureWebView(webView: WebView, mode: WebViewMode, tabId: String): WebView {
         return webView.apply {
             // 明确设置布局参数，确保WebView填满其父容器
             layoutParams =
@@ -130,7 +133,7 @@ class WebViewHandler(private val context: Context) {
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
             // 配置WebViewClient处理页面加载和错误
-            webViewClient = createWebViewClient(mode)
+            webViewClient = createWebViewClient(mode, tabId)
 
             // 配置WebChromeClient处理文件选择等高级功能
             webChromeClient = createWebChromeClient()
@@ -183,10 +186,16 @@ class WebViewHandler(private val context: Context) {
     }
 
     // 创建WebViewClient
-    private fun createWebViewClient(mode: WebViewMode): WebViewClient {
+    private fun createWebViewClient(mode: WebViewMode, tabId: String): WebViewClient {
         return object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                onPageStarted?.invoke(tabId)
+            }
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                onPageFinished?.invoke(tabId)
+
                 // 注入Blob下载辅助代码
                 view?.let { injectBlobDownloadHelper(it) }
 

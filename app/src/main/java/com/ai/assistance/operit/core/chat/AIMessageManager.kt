@@ -103,6 +103,7 @@ object AIMessageManager {
      * @param promptFunctionType 提示功能类型。
      * @param enableThinking 是否启用思考过程。
      * @param thinkingGuidance 是否启用思考引导。
+     * @param enableMemoryAttachment 是否启用记忆附着功能。
      * @return 包含AI响应流的ChatMessage对象。
      */
     suspend fun sendMessage(
@@ -113,6 +114,7 @@ object AIMessageManager {
         promptFunctionType: PromptFunctionType,
         enableThinking: Boolean,
         thinkingGuidance: Boolean,
+        enableMemoryAttachment: Boolean, // Add this parameter
         onNonFatalError: suspend (error: String) -> Unit
     ): SharedStream<String> {
         val memory = getMemoryFromMessages(chatHistory)
@@ -125,6 +127,7 @@ object AIMessageManager {
                 promptFunctionType = promptFunctionType,
                 enableThinking = enableThinking,
                 thinkingGuidance = thinkingGuidance,
+                enableMemoryAttachment = enableMemoryAttachment, // Pass it here
                 onNonFatalError = onNonFatalError
             ).share(scope) // 使用.share()将其转换为共享流
         }

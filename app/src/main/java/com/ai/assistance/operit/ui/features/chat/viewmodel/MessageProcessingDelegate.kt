@@ -151,6 +151,7 @@ class MessageProcessingDelegate(
                     promptFunctionType = promptFunctionType,
                     enableThinking = enableThinking,
                     thinkingGuidance = thinkingGuidance,
+                    enableMemoryAttachment = enableMemoryAttachment, // Pass it here
                     onNonFatalError = { error ->
                         _nonFatalErrorEvent.emit(error)
                     }

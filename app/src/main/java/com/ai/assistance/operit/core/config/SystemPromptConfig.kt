@@ -120,9 +120,22 @@ object SystemPromptConfig {
       - press_key: Simulate a key press. Parameters: key_code (key code, e.g., "KEYCODE_BACK", "KEYCODE_HOME", etc.)
       - swipe: Simulate a swipe gesture. Parameters: start_x (start X coordinate), start_y (start Y coordinate), end_x (end X coordinate), end_y (end Y coordinate), duration (duration in milliseconds, default 300)
       - find_element: Find UI elements matching specific criteria without clicking them. Parameters: resourceId (element resource ID, optional), className (element class name, optional), text (element text content, optional), partialMatch (whether to enable partial matching, default false), limit (maximum number of elements to return, default 10)
+      
+      AI Computer Tools:
+      - computer_get_tabs: Gets all open computer tabs.
+      - computer_switch_to_tab: Switches to a computer tab. Parameters: tab_id (optional), tab_index (optional).
+      - computer_open_desktop: Opens a new computer desktop home tab.
+      - computer_open_browser: Opens a new browser tab in the computer. Parameters: url (optional).
+      - computer_get_page_info: Gets interactable elements from the current page, each with an interaction_id.
+      - computer_click_element: Clicks an element on the computer page. Parameters: interaction_id.
+      - computer_scroll_by: Scrolls the page in the currently active tab in the computer. Parameters: x, y.
+      - computer_input_text: Inputs text into an element on the computer page. Parameters: interaction_id, text.
+      - computer_close_tab: Closes a specific computer tab. Parameters: tab_id (optional), tab_index (optional).
+      - computer_go_back: Navigates back to the previous page in the computer browser.
+      - automate_web_task: Executes a multi-step web automation task to achieve a specific goal. It will autonomously perform actions like clicking links and inputting text based on the current web page state until the goal is complete or cannot proceed. This is a high-level tool and should be preferred over raw click/input actions for complex goals. Parameters: task_goal (A clear and specific description of the goal to be achieved, e.g., "Log in to the website using username 'test' and password '1234'").
 
       FFmpeg Tools:
-      - ffmpeg_execute: Execute a custom FFmpeg command. Parameters: command (the FFmpeg command to execute)
+      - ffmpeg_execute: Execute a custom FFmpeg command. Parameters: command (The FFmpeg command to execute)
       - ffmpeg_info: Get FFmpeg system information including version, build configuration, and supported codecs. No parameters needed.
       - ffmpeg_convert: Convert video files with simplified parameters. Parameters:
         • input_path (source video file path)
@@ -299,6 +312,19 @@ object SystemPromptConfig {
         - press_key: 模拟按键。参数：key_code（键码，例如"KEYCODE_BACK"、"KEYCODE_HOME"等）
         - swipe: 模拟滑动手势。参数：start_x（起始X坐标），start_y（起始Y坐标），end_x（结束X坐标），end_y（结束Y坐标），duration（持续时间，毫秒，默认300）
         - find_element: 查找符合特定条件的UI元素而不点击它们。参数：resourceId（元素资源ID，可选），className（元素类名，可选），text（元素文本内容，可选），partialMatch（是否启用部分匹配，默认false），limit（返回的最大元素数量，默认10）
+        
+        AI电脑工具:
+        - computer_get_tabs: 获取所有打开的电脑标签页。
+        - computer_switch_to_tab: 切换到电脑标签页。参数: tab_id (可选), tab_index (可选)。
+        - computer_open_desktop: 打开一个新的电脑桌面主页标签。
+        - computer_open_browser: 在电脑中打开一个新的浏览器标签。参数: url (可选)。
+        - computer_get_page_info: 获取当前页面的可交互元素，每个元素都有一个interaction_id。
+        - computer_click_element: 点击电脑页面上的一个元素。参数: interaction_id。
+        - computer_scroll_by: 在电脑当前激活的标签页中，滚动页面。参数: x, y。
+        - computer_input_text: 在电脑页面上的输入框中输入文本。参数: interaction_id, text。
+        - computer_close_tab: 关闭指定的电脑标签页。参数: tab_id (可选), tab_index (可选)。
+        - computer_go_back: 在电脑浏览器中返回到上一个页面。
+        - automate_web_task: 执行一个多步骤的Web自动化任务以达成特定目标。它将根据当前Web页面状态自主执行点击链接和输入文本等操作，直到目标完成或无法继续。这是一个高级工具，对于复杂目标，应优先使用此工具，而不是原始的点击/输入操作。参数: task_goal (对要实现的目标的清晰、具体的描述，例如，“使用用户名'test'和密码'1234'登录网站”)。
         
         FFmpeg工具：
         - ffmpeg_execute: 执行自定义FFmpeg命令。参数：command（要执行的FFmpeg命令）
