@@ -1123,7 +1123,7 @@ class EnhancedAIService private constructor(private val context: Context) {
             if (usageRatio >= tokenUsageThreshold) {
                 Log.w(TAG, "Token usage ($usageRatio) exceeds threshold ($tokenUsageThreshold) after tool call. Terminating turn.")
 
-                val warningMessage = ConversationMarkupManager.createWarningStatus("已达到Token限制。为继续，请开启新话题或总结对话。")
+                val warningMessage = ConversationMarkupManager.createWarningStatus("已达到单次对话Token限制。请继续对话以触发历史压缩")
                 collector.emit(warningMessage)
                 roundManager.appendContent(warningMessage)
                 conversationMutex.withLock { conversationHistory.add(Pair("assistant", warningMessage)) }

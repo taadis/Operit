@@ -705,38 +705,20 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // 获取当前附件列表
         val currentAttachments = attachmentManager.attachments.value
 
-        // 调用messageProcessingDelegate发送消息，并传递附件信息和工作区路径
-        messageProcessingDelegate.sendUserMessage(
-                attachments = currentAttachments,
-                chatId = chatId,
-                workspacePath = workspacePath,
-                promptFunctionType = promptFunctionType,
-                enableThinking = enableThinkingMode.value, // 传递思考模式的状态
-                thinkingGuidance = enableThinkingGuidance.value, // 传递思考引导的状态
-                enableMemoryAttachment = enableMemoryAttachment.value, // 传递记忆附着的状态
-                maxTokens = (maxWindowSizeInK.value * 1024).toInt(),
-                tokenUsageThreshold = summaryTokenThreshold.value.toDouble()
-        )
-
-        // 在sendMessageInternal中，添加对nonFatalErrorEvent的收集
-        viewModelScope.launch {
-            messageProcessingDelegate.nonFatalErrorEvent.collect { errorMessage ->
-                uiStateDelegate.showToast(errorMessage)
-            }
-        }
-
+        
         // 使用 AIMessageManager 检查是否应该生成总结
         val currentMessages = chatHistoryDelegate.chatHistory.value
         val currentTokens = currentWindowSize.value
         val maxTokens = (maxWindowSizeInK.value * 1024).toInt()
 
-        if (AIMessageManager.shouldGenerateSummary(
+        val isShouldGenerateSummary = AIMessageManager.shouldGenerateSummary(
                 messages = currentMessages,
                 currentTokens = currentTokens,
                 maxTokens = maxTokens,
                 tokenUsageThreshold = summaryTokenThreshold.value.toDouble()
             )
-        ) {
+        
+        if (isShouldGenerateSummary) {
             // 1. 在调用挂起函数之前，根据当前的消息快照预先计算好插入位置
             val insertPosition = chatHistoryDelegate.findProperSummaryPosition(currentMessages)
 
@@ -752,6 +734,30 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 }
             }
         }
+
+        // 调用messageProcessingDelegate发送消息，并传递附件信息和工作区路径
+        messageProcessingDelegate.sendUserMessage(
+                attachments = currentAttachments,
+                chatId = chatId,
+                workspacePath = workspacePath,
+                promptFunctionType = promptFunctionType,
+                enableThinking = enableThinkingMode.value, // 传递思考模式的状态
+                thinkingGuidance = enableThinkingGuidance.value, // 传递思考引导的状态
+                enableMemoryAttachment = enableMemoryAttachment.value, // 传递记忆附着的状态
+                maxTokens = maxTokens,
+                //如果已经在生成总结了，那么这个值可以宽松一点，让下一次对话不会被截断
+                tokenUsageThreshold = if (isShouldGenerateSummary) summaryTokenThreshold.value.toDouble() + 0.5 else summaryTokenThreshold.value.toDouble()
+        )
+
+        // 在sendMessageInternal中，添加对nonFatalErrorEvent的收集
+        viewModelScope.launch {
+            messageProcessingDelegate.nonFatalErrorEvent.collect { errorMessage ->
+                uiStateDelegate.showToast(errorMessage)
+            }
+        }
+
+
+        
 
         // 发送后清空附件列表
         if (currentAttachments.isNotEmpty()) {
