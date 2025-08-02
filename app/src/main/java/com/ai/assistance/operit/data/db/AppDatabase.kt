@@ -33,6 +33,42 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
 
+        // 定义从版本1到2的迁移
+        private val MIGRATION_1_2 =
+                object : Migration(1, 2) {
+                    override fun migrate(db: SupportSQLiteDatabase) {
+                        // 创建chats表
+                        db.execSQL("""
+                            CREATE TABLE IF NOT EXISTS `chats` (
+                                `id` TEXT NOT NULL,
+                                `title` TEXT NOT NULL,
+                                `createdAt` INTEGER NOT NULL,
+                                `updatedAt` INTEGER NOT NULL,
+                                `inputTokens` INTEGER NOT NULL DEFAULT 0,
+                                `outputTokens` INTEGER NOT NULL DEFAULT 0,
+                                `currentWindowSize` INTEGER NOT NULL DEFAULT 0,
+                                PRIMARY KEY(`id`)
+                            )
+                        """.trimIndent())
+                        
+                        // 创建messages表
+                        db.execSQL("""
+                            CREATE TABLE IF NOT EXISTS `messages` (
+                                `messageId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                                `chatId` TEXT NOT NULL,
+                                `sender` TEXT NOT NULL,
+                                `content` TEXT NOT NULL,
+                                `timestamp` INTEGER NOT NULL,
+                                `orderIndex` INTEGER NOT NULL,
+                                FOREIGN KEY(`chatId`) REFERENCES `chats`(`id`) ON DELETE CASCADE
+                            )
+                        """.trimIndent())
+                        
+                        // 为messages表创建索引
+                        db.execSQL("CREATE INDEX IF NOT EXISTS `index_messages_chatId` ON `messages` (`chatId`)")
+                    }
+                }
+
         // 定义从版本2到3的迁移
         private val MIGRATION_2_3 =
                 object : Migration(2, 3) {
@@ -82,7 +118,7 @@ abstract class AppDatabase : RoomDatabase() {
                                                 AppDatabase::class.java,
                                                 "app_database"
                                         )
-                                        .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6) // 添加迁移
+                                        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6) // 添加迁移
                                         .build()
                         INSTANCE = instance
                         instance
