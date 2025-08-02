@@ -31,6 +31,7 @@ import androidx.core.content.FileProvider
 import com.ai.assistance.operit.data.model.ChatHistory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.PlanItem
+import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -49,6 +50,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.InputChip
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.filled.Delete
 import com.ai.assistance.operit.ui.features.chat.components.MessageEditor
@@ -87,8 +90,15 @@ fun ChatScreenContent(
         onAutoScrollToBottomChange: (Boolean) -> Unit,
         coroutineScope: CoroutineScope,
         chatHistories: List<ChatHistory>,
-        currentChatId: String
+        currentChatId: String,
+        chatHeaderTransparent: Boolean,
+        chatHeaderHistoryIconColor: Int?,
+        chatHeaderPipIconColor: Int?,
+        chatHeaderOverlayMode: Boolean
 ) {
+    val density = LocalDensity.current
+    var headerHeight by remember { mutableStateOf(0.dp) }
+
     // 获取WebView状态
     val showWebView = actualViewModel.showWebView.collectAsState().value
     val currentChat = chatHistories.find { it.id == currentChatId }
@@ -117,164 +127,76 @@ fun ChatScreenContent(
     }
 
     Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-        // 主聊天区域（包括顶部工具栏），确保它一直可见
-        Column(
-                modifier =
-                        Modifier.fillMaxSize()
-                                .pointerInput(Unit) {
-                                    detectHorizontalDragGestures(
-                                            onDragStart = {
-                                                onChatScreenGestureConsumed(false)
-                                                onCurrentDragChange(0f)
-                                                onVerticalDragChange(0f)
-                                            },
-                                            onDragEnd = {
-                                                onCurrentDragChange(0f)
-                                                onVerticalDragChange(0f)
-                                                onChatScreenGestureConsumed(false)
-                                            },
-                                            onDragCancel = {
-                                                onCurrentDragChange(0f)
-                                                onVerticalDragChange(0f)
-                                                onChatScreenGestureConsumed(false)
-                                            },
-                                            onHorizontalDrag = { change, dragAmount ->
-                                                val newDrag = currentDrag + dragAmount
-                                                onCurrentDragChange(newDrag)
-                                                val dragRight = dragAmount > 0
-                                                if (!showChatHistorySelector &&
-                                                                dragRight &&
-                                                                newDrag > dragThreshold &&
-                                                                Math.abs(newDrag) >
-                                                                        Math.abs(verticalDrag)
-                                                ) {
-                                                    actualViewModel.showChatHistorySelector(true)
-                                                    onChatScreenGestureConsumed(true)
-                                                    change.consume()
-                                                }
-                                                if (dragAmount < 0 &&
-                                                                showChatHistorySelector &&
-                                                                newDrag < -dragThreshold
-                                                ) {
-                                                    actualViewModel.showChatHistorySelector(false)
-                                                    onChatScreenGestureConsumed(true)
-                                                    change.consume()
-                                                }
-                                            }
-                                    )
-                                }
-                                .pointerInput(Unit) {
-                                    detectVerticalDragGestures { _, dragAmount ->
-                                        onVerticalDragChange(verticalDrag + dragAmount)
-                                    }
-                                }
-        ) {
-            // 聊天区域
+        if (chatHeaderOverlayMode && chatHeaderTransparent) {
+            // 覆盖模式：Header浮动在ChatArea之上
+            Box(modifier = Modifier.fillMaxSize()) {
+                ChatArea(
+                        chatHistory = chatHistory,
+                        scrollState = scrollState,
+                        planItems = planItems,
+                        enablePlanning = enableAiPlanning,
+                        isLoading = isLoading,
+                        userMessageColor = userMessageColor,
+                        aiMessageColor = aiMessageColor,
+                        userTextColor = userTextColor,
+                        aiTextColor = aiTextColor,
+                        systemMessageColor = systemMessageColor,
+                        systemTextColor = systemTextColor,
+                        thinkingBackgroundColor = thinkingBackgroundColor,
+                        thinkingTextColor = thinkingTextColor,
+                        hasBackgroundImage = hasBackgroundImage,
+                        modifier = Modifier.fillMaxSize(),
+                        onSelectMessageToEdit = onSelectMessageToEditCallback,
+                        onDeleteMessage = { index -> actualViewModel.deleteMessage(index) },
+                        onDeleteMessagesFrom = { index -> actualViewModel.deleteMessagesFrom(index) },
+                        topPadding = headerHeight
+                )
+                ChatScreenHeader(
+                        modifier =
+                                Modifier.onGloballyPositioned { coordinates ->
+                                    headerHeight = with(density) { coordinates.size.height.toDp() }
+                                },
+                        actualViewModel = actualViewModel,
+                        showChatHistorySelector = showChatHistorySelector,
+                        chatHistories = chatHistories,
+                        currentChatId = currentChatId,
+                        chatHeaderTransparent = chatHeaderTransparent,
+                        chatHeaderHistoryIconColor = chatHeaderHistoryIconColor,
+                        chatHeaderPipIconColor = chatHeaderPipIconColor
+                )
+            }
+        } else {
+            // 正常模式：Header和ChatArea在Column中顺序排列
             Column(modifier = Modifier.fillMaxSize()) {
-                // 顶部工具栏 - 整合聊天历史按钮和统计信息 - 始终显示在顶部
                 ChatScreenHeader(
                         actualViewModel = actualViewModel,
                         showChatHistorySelector = showChatHistorySelector,
                         chatHistories = chatHistories,
                         currentChatId = currentChatId,
+                        chatHeaderTransparent = chatHeaderTransparent,
+                        chatHeaderHistoryIconColor = chatHeaderHistoryIconColor,
+                        chatHeaderPipIconColor = chatHeaderPipIconColor
                 )
-
-                // 聊天对话区域
-                Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
-                    // 始终显示聊天区域，不再使用if条件判断
-                    ChatArea(
-                            chatHistory = chatHistory,
-                            scrollState = scrollState,
-                            planItems = planItems,
-                            enablePlanning = enableAiPlanning,
-                            isLoading = isLoading,
-                            userMessageColor = userMessageColor,
-                            aiMessageColor = aiMessageColor,
-                            userTextColor = userTextColor,
-                            aiTextColor = aiTextColor,
-                            systemMessageColor = systemMessageColor,
-                            systemTextColor = systemTextColor,
-                            thinkingBackgroundColor = thinkingBackgroundColor,
-                            thinkingTextColor = thinkingTextColor,
-                            hasBackgroundImage = hasBackgroundImage,
-                            modifier = Modifier.fillMaxSize(),
-                            onSelectMessageToEdit = onSelectMessageToEditCallback,
-                            onDeleteMessage = { index -> actualViewModel.deleteMessage(index) },
-                            onDeleteMessagesFrom = { index -> actualViewModel.deleteMessagesFrom(index) }
-                    )
-
-                    // 编辑模式下的操作面板
-                    if (editingMessageIndex.value != null) {
-                        MessageEditor(
-                            editingMessageContent = editingMessageContent,
-                            onCancel = {
-                                editingMessageIndex.value = null
-                                editingMessageContent.value = ""
-                                editingMessageType = null
-                            },
-                            onSave = {
-                                val index = editingMessageIndex.value
-                                if (index != null && index < chatHistory.size) {
-                                    val editedMessage =
-                                        chatHistory[index].copy(
-                                            content = editingMessageContent.value
-                                        )
-                                    actualViewModel.updateMessage(index, editedMessage)
-
-                                    // 重置编辑状态
-                                    editingMessageIndex.value = null
-                                    editingMessageContent.value = ""
-                                    editingMessageType = null
-                                }
-                            },
-                            onResend = {
-                                val index = editingMessageIndex.value
-                                if (index != null && index < chatHistory.size) {
-                                    actualViewModel.rewindAndResendMessage(
-                                        index,
-                                        editingMessageContent.value
-                                    )
-
-                                    // 重置编辑状态
-                                    editingMessageIndex.value = null
-                                    editingMessageContent.value = ""
-                                    editingMessageType = null
-                                }
-                            },
-                            showResendButton = editingMessageType == "user"
-                        )
-                    }
-
-                    // 滚动到底部按钮 - 仅在可见区域需要时显示，不再受WebView显示状态影响
-                    if (showScrollButton) {
-                        Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.BottomEnd
-                        ) {
-                            ScrollToBottomButton(
-                                    onClick = {
-                                        // 点击按钮：启用自动滚动，隐藏按钮，并立即滚动到底部
-                                        onAutoScrollToBottomChange(true)
-                                        onShowScrollButtonChange(false)
-
-                                        coroutineScope.launch {
-                                            if (chatHistory.isNotEmpty()) {
-                                                try {
-                                                    // 不关心index，直接尝试滚动到底部
-                                                    // 使用最大可能的滚动量
-                                                    scrollState.animateScrollTo(
-                                                            scrollState.maxValue
-                                                    )
-                                                } catch (e: Exception) {
-                                                    Log.e("ChatScreenContent", "滚动到底部失败", e)
-                                                }
-                                            }
-                                        }
-                                    }
-                            )
-                        }
-                    }
-                }
+                ChatArea(
+                        chatHistory = chatHistory,
+                        scrollState = scrollState,
+                        planItems = planItems,
+                        enablePlanning = enableAiPlanning,
+                        isLoading = isLoading,
+                        userMessageColor = userMessageColor,
+                        aiMessageColor = aiMessageColor,
+                        userTextColor = userTextColor,
+                        aiTextColor = aiTextColor,
+                        systemMessageColor = systemMessageColor,
+                        systemTextColor = systemTextColor,
+                        thinkingBackgroundColor = thinkingBackgroundColor,
+                        thinkingTextColor = thinkingTextColor,
+                        hasBackgroundImage = hasBackgroundImage,
+                        modifier = Modifier.fillMaxSize(),
+                        onSelectMessageToEdit = onSelectMessageToEditCallback,
+                        onDeleteMessage = { index -> actualViewModel.deleteMessage(index) },
+                        onDeleteMessagesFrom = { index -> actualViewModel.deleteMessagesFrom(index) }
+                )
             }
         }
 

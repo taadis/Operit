@@ -42,6 +42,7 @@ import com.ai.assistance.operit.ui.features.chat.util.ConfigurationStateHolder
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModelFactory
 import com.ai.assistance.operit.ui.main.LocalTopBarActions
+import com.ai.assistance.operit.ui.main.components.LocalAppBarContentColor
 import com.ai.assistance.operit.ui.main.screens.GestureStateHolder
 import java.io.File
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -99,6 +100,13 @@ fun AIChatScreen(
     val preferencesManager = remember { UserPreferencesManager(context) }
     val useBackgroundImage by preferencesManager.useBackgroundImage.collectAsState(initial = false)
     val backgroundImageUri by preferencesManager.backgroundImageUri.collectAsState(initial = null)
+    val chatHeaderTransparent by preferencesManager.chatHeaderTransparent.collectAsState(initial = false)
+    val chatInputTransparent by preferencesManager.chatInputTransparent.collectAsState(initial = false)
+    val chatHeaderHistoryIconColor by preferencesManager.chatHeaderHistoryIconColor.collectAsState(
+            initial = null
+    )
+    val chatHeaderPipIconColor by preferencesManager.chatHeaderPipIconColor.collectAsState(initial = null)
+    val chatHeaderOverlayMode by preferencesManager.chatHeaderOverlayMode.collectAsState(initial = false)
     val hasBackgroundImage = useBackgroundImage && backgroundImageUri != null
 
     // 添加编辑按钮和编辑状态
@@ -339,32 +347,35 @@ fun AIChatScreen(
 
     // 从CompositionLocal获取设置TopBar Actions的函数
     val setTopBarActions = LocalTopBarActions.current
+    val appBarContentColor = LocalAppBarContentColor.current
 
     // 当showWebView状态改变时，更新TopAppBar的actions
     // 使用DisposableEffect确保当AIChatScreen离开组合时，actions被清空
-    DisposableEffect(showWebView, showAiComputer) {
+    DisposableEffect(showWebView, showAiComputer, appBarContentColor) {
         setTopBarActions {
             // AI电脑模式切换按钮
             IconButton(onClick = { actualViewModel.onAiComputerButtonClick() }) {
                 Icon(
-                    imageVector = Icons.Default.Computer,
-                    contentDescription = "AI电脑",
-                    tint =
-                    if (showAiComputer) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.onPrimary
+                        imageVector = Icons.Default.Computer,
+                        contentDescription = "AI电脑",
+                        tint =
+                                if (showAiComputer) MaterialTheme.colorScheme.primaryContainer
+                                else appBarContentColor
                 )
             }
             // Web开发模式切换按钮
-            IconButton(onClick = {
-                actualViewModel.onWorkspaceButtonClick()
-                actualViewModel.refreshWebView()
-            }) {
+            IconButton(
+                    onClick = {
+                        actualViewModel.onWorkspaceButtonClick()
+                        actualViewModel.refreshWebView()
+                    }
+            ) {
                 Icon(
                         imageVector = Icons.Default.Code,
                         contentDescription = "代码编辑器",
                         tint =
                                 if (showWebView) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.onPrimary
+                                else appBarContentColor
                 )
             }
         }
@@ -437,6 +448,7 @@ fun AIChatScreen(
                                     actualViewModel.captureLocation()
                                 },
                                 hasBackgroundImage = hasBackgroundImage,
+                                chatInputTransparent = chatInputTransparent,
                                 // 传递附件面板状态
                                 externalAttachmentPanelState = attachmentPanelState,
                                 onAttachmentPanelStateChange = { newState ->
@@ -444,9 +456,6 @@ fun AIChatScreen(
                                 }
                         )
                     }
-                },
-                floatingActionButton = {
-                    // Remove the existing FAB since we now have the button in the header
                 }
         ) { paddingValues ->
             // 根据前面的逻辑条件决定是否显示配置界面
@@ -524,7 +533,11 @@ fun AIChatScreen(
                             onAutoScrollToBottomChange = onAutoScrollToBottomChange,
                             coroutineScope = coroutineScope,
                             chatHistories = chatHistories,
-                            currentChatId = currentChatId ?: ""
+                            currentChatId = currentChatId ?: "",
+                            chatHeaderTransparent = chatHeaderTransparent,
+                            chatHeaderHistoryIconColor = chatHeaderHistoryIconColor,
+                            chatHeaderPipIconColor = chatHeaderPipIconColor,
+                            chatHeaderOverlayMode = chatHeaderOverlayMode
                     )
 
                     // The settings bar is aligned to the bottom-end of the parent Box,

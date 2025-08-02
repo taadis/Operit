@@ -1334,6 +1334,12 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     }
 
     fun onAiComputerButtonClick() {
-        toggleAiComputer()
+        viewModelScope.launch {
+            if (isWorkspaceUnlocked.first()) {
+                toggleAiComputer()
+            } else {
+                _showInvitationExplanation.value = true
+            }
+        }
     }
 }

@@ -78,6 +78,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.ui.unit.Dp
 
 @Composable
 fun ChatArea(
@@ -102,6 +103,7 @@ fun ChatArea(
     onDeleteMessage: ((Int) -> Unit)? = null,
     onDeleteMessagesFrom: ((Int) -> Unit)? = null,
     messagesPerPage: Int = 10, // 每页显示的消息数量
+    topPadding: Dp = 0.dp
 ) {
     // 记住当前深度状态，但当chatHistory发生变化时重置为1
     var currentDepth = remember(chatHistory) { mutableStateOf(1) }
@@ -123,7 +125,8 @@ fun ChatArea(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
                     .verticalScroll(scrollState) // 使用从外部传入的scrollState
-                    .background(Color.Transparent),
+                    .background(Color.Transparent)
+                    .padding(top = topPadding),
         ) {
             val messagesCount = chatHistory.size
             val maxVisibleIndex = messagesCount - 1

@@ -251,9 +251,26 @@
     <string name="theme_loop_on">关闭循环</string>
     <string name="theme_loop_enabled">循环播放已开启</string>
     <string name="theme_loop_disabled">循环播放已关闭</string>
+    <string name="theme_toolbar_transparent">工具栏设置</string>
+    <string name="theme_toolbar_transparent_desc">透明工具栏</string>
+    <string name="theme_toolbar_transparent_desc_desc">开启后，工具栏将变为透明</string>
+    <string name="theme_statusbar_color">状态栏颜色</string>
+    <string name="theme_use_custom_statusbar_color">自定义状态栏颜色</string>
+    <string name="theme_use_custom_statusbar_color_desc">开启后可以自定义状态栏的颜色</string>
+    <string name="theme_statusbar_transparent">透明状态栏</string>
+    <string name="theme_statusbar_transparent_desc">开启后状态栏将变为透明，与背景融为一体</string>
+    <string name="theme_chat_history_selector_transparent">透明历史选择器</string>
+    <string name="theme_chat_history_selector_transparent_desc">开启后聊天历史选择器将变为透明</string>
+    <string name="theme_chat_header_transparent">透明聊天栏</string>
+    <string name="theme_chat_header_transparent_desc">开启后聊天顶栏将变为透明</string>
+    <string name="theme_chat_header_transparent_title">聊天顶栏设置</string>
+    <string name="theme_chat_input_transparent_title">输入框设置</string>
+    <string name="theme_chat_input_transparent">透明输入框</string>
+    <string name="theme_chat_input_transparent_desc">开启后聊天输入框将变为透明</string>
     
     <!-- Floating Window -->
     <string name="floating_chat_window">聊天悬浮窗</string>
+    <string name="floating_chat_window_desc">在屏幕上显示一个悬浮窗，用于快速访问聊天功能</string>
     <string name="enable_floating_mode">启用悬浮窗模式</string>
     <string name="disable_floating_mode">关闭悬浮窗模式</string>
     <string name="overlay_permission_required">需要悬浮窗权限</string>
@@ -921,4 +938,20 @@
     <string name="accessibility_risk_warning_input_error">请输入\"明白\"或\"ok\"确认您已了解风险</string>
     <string name="accessibility_risk_warning_confirm">确认继续</string>
     <string name="accessibility_risk_warning_cancel">取消</string>
+
+    <string name="theme_appbar_content_color_title">顶栏内容颜色</string>
+    <string name="theme_force_appbar_content_color">强制使用顶栏内容颜色</string>
+    <string name="theme_force_appbar_content_color_desc">开启后，顶栏的标题和图标颜色将固定，不受背景影响</string>
+    <string name="theme_appbar_content_color_mode">颜色模式</string>
+    <string name="theme_appbar_content_color_light">浅色 (白色系)</string>
+    <string name="theme_appbar_content_color_dark">深色 (黑色系)</string>
+
+    <string name="theme_chat_header_icons_color_title">聊天顶栏图标颜色</string>
+    <string name="theme_chat_header_history_icon_color">历史记录图标颜色</string>
+    <string name="theme_chat_header_pip_icon_color">悬浮窗图标颜色</string>
+    <string name="theme_chat_header_overlay_mode">覆盖模式</string>
+    <string name="theme_chat_header_overlay_mode_desc">开启后，透明顶栏将作为覆盖层显示，不会挤占消息空间</string>
+    <string name="theme_background_blur">背景模糊</string>
+    <string name="theme_background_blur_desc">为背景图片或视频添加高斯模糊效果</string>
+    <string name="theme_background_blur_radius">模糊半径</string>
 </resources>

@@ -109,24 +109,31 @@ fun MediaTypeOption(
 fun ColorSelectionItem(
     title: String,
     color: Color,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val alpha = if (enabled) 1f else 0.38f
     Column(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.clickable(enabled = enabled, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(bottom = 8.dp),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
         )
 
         Box(
             modifier = Modifier.size(48.dp)
                 .clip(CircleShape)
-                .background(color)
-                .border(2.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                .background(color.copy(alpha = if (enabled) color.alpha else color.alpha * 0.5f))
+                .border(
+                    2.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = alpha),
+                    CircleShape
+                )
         )
     }
 }

@@ -17,7 +17,7 @@ object HtmlParserUtil {
                     'placeholder', 'name', 'role', 'aria-label', 'onclick'
                 ]);
                 const MAX_DEPTH = 20;
-                const MAX_ELEMENTS = 300; // Limit total elements to prevent performance issues on huge pages.
+                const MAX_ELEMENTS = 500; // Increased limit
                 
                 let interactionIdCounter = 1;
                 let processedElements = 0;
@@ -107,118 +107,78 @@ object HtmlParserUtil {
                 function getNodeDescription(element) {
                     const attrs = ['aria-label', 'alt', 'title', 'placeholder', 'name'];
                     for (const attr of attrs) {
-                        if (element.hasAttribute(attr) && element.getAttribute(attr)) return element.getAttribute(attr);
+                        const val = element.getAttribute(attr);
+                        if (val) return val.trim();
                     }
+
+                    // Prioritize direct text content.
+                    let directText = Array.from(element.childNodes)
+                        .filter(n => n.nodeType === Node.TEXT_NODE)
+                        .map(n => n.textContent.trim())
+                        .join(' ')
+                        .trim();
                     
-                    // --- New: Heuristic for icon buttons ---
-                    const classList = Array.from(element.classList || []);
-                    const iconKeywords = ['close', 'search', 'next', 'previous', 'back', 'menu', 'delete', 'remove', 'add', 'plus'];
-                    for (const keyword of iconKeywords) {
-                        if (classList.some(cls => cls.toLowerCase().includes(keyword))) {
-                            return keyword; // Return the keyword as description
-                        }
-                    }
+                    if (directText) return directText;
 
-                    // --- New: Heuristic for SVG <use> tags ---
-                    const useTag = element.querySelector('use');
-                    if (useTag) {
-                        const href = useTag.getAttribute('href') || useTag.getAttribute('xlink:href');
-                        if (href && href.startsWith('#')) {
-                            return href.substring(1); // Return the ID as description
-                        }
-                    }
-                    // --- End New ---
+                    // Fallback to textContent, which includes children, but keep it short.
+                    let fullText = (element.textContent || "").replace(/\s+/g, ' ').trim();
 
-                    // For input fields, look for an associated label
-                    if (element.tagName.toUpperCase() === 'INPUT' && element.id) {
-                        const label = document.querySelector(`label[for="${'$'}{element.id}"]`);
-                        if (label && label.textContent) return label.textContent.trim();
-                    }
-
-                    let ownText = '';
-                    if (element.childNodes) {
-                        for (const child of element.childNodes) {
-                            if (child.nodeType === Node.TEXT_NODE) {
-                                const text = child.textContent.trim();
-                                if (text) ownText += text + ' ';
+                    // To avoid a parent's description stealing the unique text of its interactive children,
+                    // we try to subtract their text from the parent's full text.
+                    const children = element.children || [];
+                    for(const child of children) {
+                        if(isInteractive(child)) {
+                            const childText = (child.textContent || "").replace(/\s+/g, ' ').trim();
+                            if(childText && fullText.includes(childText)) {
+                                fullText = fullText.replace(childText, '').trim();
                             }
                         }
                     }
-                    ownText = ownText.trim();
-                    
-                    if (!ownText && isInteractive(element)) {
-                        ownText = (element.textContent || "").replace(/\s+/g, ' ').trim();
-                    }
 
-                    return ownText.length > 150 ? ownText.substring(0, 147) + '...' : ownText;
+                    return fullText.length > 80 ? fullText.substring(0, 77) + '...' : fullText;
                 }
 
                 function simplifyNode(element, depth) {
-                    if (depth > MAX_DEPTH || processedElements > MAX_ELEMENTS || !element.tagName || IGNORE_TAGS.has(element.tagName.toUpperCase()) || !isVisible(element)) {
+                    if (depth > MAX_DEPTH || processedElements >= MAX_ELEMENTS || !element.tagName || IGNORE_TAGS.has(element.tagName.toUpperCase()) || !isVisible(element)) {
                         return null;
                     }
-                    processedElements++;
-
-                    let hasInteractiveChild = false;
-                    const rawChildren = [];
+                    
+                    let children = [];
+                    // ALWAYS process children, regardless of whether the parent is interactive.
+                    // This fixes the issue where an interactive container would hide its interactive children.
                     if (element.childNodes) {
                         element.childNodes.forEach(child => {
                             if (child.nodeType === Node.ELEMENT_NODE) {
-                                const simplifiedChildResult = simplifyNode(child, depth + 1);
-                                if (simplifiedChildResult) {
-                                    rawChildren.push(simplifiedChildResult.node);
-                                    if (simplifiedChildResult.hasInteractiveChild) {
-                                        hasInteractiveChild = true;
-                                    }
+                                const simplifiedChild = simplifyNode(child, depth + 1);
+                                if (simplifiedChild) {
+                                    children.push(simplifiedChild);
                                 }
                             }
                         });
                     }
                     
-                    const isItselfInteractive = isInteractive(element);
-                    const ownDescription = getNodeDescription(element);
+                    processedElements++;
 
-                    if (!isItselfInteractive && !hasInteractiveChild && !ownDescription) {
-                        return null;
+                    const isItselfInteractive = isInteractive(element);
+                    const flatChildren = children.flat();
+                    const hasInteractiveDescendant = flatChildren.some(c => c.interactionId != null);
+                    const ownDescription = getNodeDescription(element).trim();
+                    
+                    // Pruning: If a node isn't interactive, has no text, and has no interactive children, it's just a layout div. Discard it.
+                    if (!isItselfInteractive && !ownDescription && !hasInteractiveDescendant) {
+                        return flatChildren;
                     }
-                    
-                    const finalChildren = [];
-                    let lastTextNode = null;
-                    rawChildren.forEach(child => {
-                         const isSimpleText = (child.type === 'container' || child.type === 'text') && !child.interactionId && child.children.length === 0;
-                         if (isSimpleText && child.description) {
-                            if (lastTextNode) {
-                                lastTextNode.description = (lastTextNode.description + ' ' + child.description).trim();
-                            } else {
-                                lastTextNode = { type: 'text', description: child.description, children: [], interactionId: null };
-                                finalChildren.push(lastTextNode);
-                            }
-                         } else {
-                            lastTextNode = null;
-                            finalChildren.push(child);
-                         }
-                    });
-                    
+
                     const tagName = element.tagName.toUpperCase();
                     let type = "container";
-                    if (isItselfInteractive) {
+                     if (isItselfInteractive) {
                          if (tagName === 'A') type = 'link';
                          else if (tagName === 'BUTTON') type = 'button';
                          else if (tagName === 'INPUT') {
                             const inputType = element.getAttribute('type')?.toLowerCase();
-                            switch (inputType) {
-                                case 'button':
-                                case 'submit':
-                                case 'reset':
-                                case 'image':
-                                    type = 'input_button';
-                                    break;
-                                default:
-                                    type = 'input_text';
-                                    break;
-                            }
+                            type = (inputType === 'button' || inputType === 'submit') ? 'input_button' : 'input_text';
                          }
-                         else if (tagName === 'TEXTAREA') type = 'input_text';
+                         else if (tagName === 'TEXTAREA' || tagName === 'SELECT') type = 'input_text';
                          else type = 'interactive';
                     }
 
@@ -231,44 +191,52 @@ object HtmlParserUtil {
                     const finalNode = {
                         interactionId: interactionId,
                         type: type,
-                        description: ownDescription || (finalChildren.length === 1 ? finalChildren[0].description : ''),
-                        children: finalChildren.length > 1 ? finalChildren : (finalChildren.length === 1 && finalChildren[0].children.length > 0 ? finalChildren[0].children : [])
+                        description: ownDescription || (isItselfInteractive ? type : ''), // Fallback description
+                        children: flatChildren
                     };
-
-                    if (!finalNode.description && finalNode.children.length === 0 && !finalNode.interactionId) return null;
-
-                    return { node: finalNode, hasInteractiveChild: isItselfInteractive || hasInteractiveChild };
+                    
+                    return [finalNode];
                 }
                 
                 const rootElement = findTopmostModal() || document.body;
-                const result = simplifyNode(rootElement, 0);
-                
+                const simplifiedTree = simplifyNode(rootElement, 0);
+
                 return JSON.stringify({
-                    tree: result ? result.node : null,
-                    interactionMap: interactionMap
+                    tree: simplifiedTree,
+                    map: interactionMap
                 });
             })();
         """.trimIndent()
     }
 
-    fun parseAndSimplify(
-        jsonString: String,
-        updateInteractionMap: (Map<Int, String>) -> Unit
-    ): ComputerPageInfoNode? {
-        try {
-            val result = Json.decodeFromString<PageExtractionResult>(jsonString)
-            val intKeyMap = result.interactionMap.mapKeys { it.key.toInt() }
-            updateInteractionMap(intKeyMap)
-            return result.tree
+    @Serializable
+    private data class ExtractionResult(
+        val tree: List<ComputerPageInfoNode>?,
+        val map: Map<String, String>
+    )
+
+    fun parseAndSimplify(jsonString: String, updateInteractionMap: (Map<Int, String>) -> Unit): ComputerPageInfoNode? {
+        return try {
+            val json = Json { ignoreUnknownKeys = true }
+            val result = json.decodeFromString<ExtractionResult>(jsonString)
+            
+            val interactionMapIntKeys = result.map.mapKeys { it.key.toIntOrNull() ?: -1 }.filterKeys { it != -1 }
+            updateInteractionMap(interactionMapIntKeys)
+            
+            // The result from the new script is a list (or a single root object in a list)
+            // We can wrap it in a root node for consistency with the old structure if needed
+            val rootChildren = result.tree ?: emptyList()
+            
+            return ComputerPageInfoNode(
+                interactionId = null,
+                type = "container",
+                description = "Root",
+                children = rootChildren.filterNotNull()
+            )
         } catch (e: Exception) {
-            android.util.Log.e("HtmlParserUtil", "Failed to parse page extraction result. JSON length: ${jsonString.length}", e)
-            return null
+            // Log the exception
+            println("Error parsing simplified HTML: ${e.message}")
+            null
         }
     }
-
-    @Serializable
-    private data class PageExtractionResult(
-        val tree: ComputerPageInfoNode?,
-        val interactionMap: Map<String, String>
-    )
 } 

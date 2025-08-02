@@ -224,15 +224,15 @@ fun PhoneLayout(
                         )
                 }
 
-                // 添加一个小方块，填充圆角和工具栏之间的空隙
-                Box(
-                        modifier =
-                                Modifier.width(16.dp)
-                                        .height(64.dp)
-                                        .offset(x = drawerOffset + drawerWidth - 16.dp)
-                                        .background(MaterialTheme.colorScheme.primary)
-                                        .zIndex(1f)
-                )
+                // // 添加一个小方块，填充圆角和工具栏之间的空隙
+                // Box(
+                //         modifier =
+                //                 Modifier.width(16.dp)
+                //                         .height(64.dp)
+                //                         .offset(x = drawerOffset + drawerWidth - 16.dp)
+                //                         .background(MaterialTheme.colorScheme.primary)
+                //                         .zIndex(1f)
+                // )
 
                 // 抽屉内容，从左侧滑动进入 - 使用缓存内容
                 Surface(

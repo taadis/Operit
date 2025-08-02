@@ -63,6 +63,7 @@ fun ChatInputSection(
         onAttachNotifications: () -> Unit = {},
         onAttachLocation: () -> Unit = {},
         hasBackgroundImage: Boolean = false,
+        chatInputTransparent: Boolean = false,
         modifier: Modifier = Modifier,
         externalAttachmentPanelState: Boolean? = null,
         onAttachmentPanelStateChange: ((Boolean) -> Unit)? = null
@@ -129,11 +130,14 @@ fun ChatInputSection(
                 onAttachmentPanelStateChange?.invoke(showAttachmentPanel)
         }
 
+        val surfaceColor = when {
+                chatInputTransparent -> MaterialTheme.colorScheme.surface.copy(alpha = 0f)
+                hasBackgroundImage -> MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                else -> MaterialTheme.colorScheme.surface
+        }
+
         Surface(
-                color =
-                        if (hasBackgroundImage)
-                                MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
-                        else MaterialTheme.colorScheme.surface,
+                color = surfaceColor,
                 tonalElevation = 3.dp,
                 modifier = modifier.shadow(4.dp)
         ) {

@@ -71,12 +71,39 @@ class UserPreferencesManager(private val context: Context) {
         private val VIDEO_BACKGROUND_MUTED = booleanPreferencesKey("video_background_muted")
         private val VIDEO_BACKGROUND_LOOP = booleanPreferencesKey("video_background_loop")
 
+        // 工具栏透明度设置
+        private val TOOLBAR_TRANSPARENT = booleanPreferencesKey("toolbar_transparent")
+
+        // 状态栏颜色设置
+        private val USE_CUSTOM_STATUS_BAR_COLOR = booleanPreferencesKey("use_custom_status_bar_color")
+        private val CUSTOM_STATUS_BAR_COLOR = intPreferencesKey("custom_status_bar_color")
+        private val STATUS_BAR_TRANSPARENT = booleanPreferencesKey("status_bar_transparent")
+        private val CHAT_HEADER_TRANSPARENT = booleanPreferencesKey("chat_header_transparent")
+        private val CHAT_INPUT_TRANSPARENT = booleanPreferencesKey("chat_input_transparent")
+
+        // AppBar 内容颜色设置
+        private val FORCE_APP_BAR_CONTENT_COLOR_ENABLED = booleanPreferencesKey("force_app_bar_content_color_enabled")
+        private val APP_BAR_CONTENT_COLOR_MODE = stringPreferencesKey("app_bar_content_color_mode")
+
+        // ChatHeader 图标颜色设置
+        private val CHAT_HEADER_HISTORY_ICON_COLOR = intPreferencesKey("chat_header_history_icon_color")
+        private val CHAT_HEADER_PIP_ICON_COLOR = intPreferencesKey("chat_header_pip_icon_color")
+        private val CHAT_HEADER_OVERLAY_MODE = booleanPreferencesKey("chat_header_overlay_mode")
+
+        // 背景模糊设置
+        private val USE_BACKGROUND_BLUR = booleanPreferencesKey("use_background_blur")
+        private val BACKGROUND_BLUR_RADIUS = floatPreferencesKey("background_blur_radius")
+
         // 默认配置文件ID
         private const val DEFAULT_PROFILE_ID = "default"
 
         // 主题模式常量
         const val THEME_MODE_LIGHT = "light"
         const val THEME_MODE_DARK = "dark"
+
+        // AppBar 内容颜色模式常量
+        const val APP_BAR_CONTENT_COLOR_MODE_LIGHT = "light"
+        const val APP_BAR_CONTENT_COLOR_MODE_DARK = "dark"
 
         // 背景媒体类型常量
         const val MEDIA_TYPE_IMAGE = "image"
@@ -188,6 +215,71 @@ class UserPreferencesManager(private val context: Context) {
                 preferences[VIDEO_BACKGROUND_LOOP] ?: true
             }
 
+    val toolbarTransparent: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[TOOLBAR_TRANSPARENT] ?: false
+            }
+
+    val useCustomStatusBarColor: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[USE_CUSTOM_STATUS_BAR_COLOR] ?: false
+            }
+    
+    val customStatusBarColor: Flow<Int?> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[CUSTOM_STATUS_BAR_COLOR]
+            }
+
+    val statusBarTransparent: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[STATUS_BAR_TRANSPARENT] ?: false
+            }
+
+    val chatHeaderTransparent: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[CHAT_HEADER_TRANSPARENT] ?: false
+            }
+
+    val chatInputTransparent: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[CHAT_INPUT_TRANSPARENT] ?: false
+            }
+
+    val forceAppBarContentColor: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[FORCE_APP_BAR_CONTENT_COLOR_ENABLED] ?: false
+            }
+
+    val appBarContentColorMode: Flow<String> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[APP_BAR_CONTENT_COLOR_MODE] ?: APP_BAR_CONTENT_COLOR_MODE_LIGHT
+            }
+
+    val chatHeaderHistoryIconColor: Flow<Int?> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[CHAT_HEADER_HISTORY_ICON_COLOR]
+            }
+
+    val chatHeaderPipIconColor: Flow<Int?> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[CHAT_HEADER_PIP_ICON_COLOR]
+            }
+
+    val chatHeaderOverlayMode: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[CHAT_HEADER_OVERLAY_MODE] ?: false
+            }
+
+    val useBackgroundBlur: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[USE_BACKGROUND_BLUR] ?: false
+            }
+
+    val backgroundBlurRadius: Flow<Float> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[BACKGROUND_BLUR_RADIUS] ?: 10f
+            }
+
     // 保存主题设置
     suspend fun saveThemeSettings(
             themeMode: String? = null,
@@ -200,7 +292,20 @@ class UserPreferencesManager(private val context: Context) {
             backgroundImageOpacity: Float? = null,
             backgroundMediaType: String? = null,
             videoBackgroundMuted: Boolean? = null,
-            videoBackgroundLoop: Boolean? = null
+            videoBackgroundLoop: Boolean? = null,
+            toolbarTransparent: Boolean? = null,
+            useCustomStatusBarColor: Boolean? = null,
+            customStatusBarColor: Int? = null,
+            statusBarTransparent: Boolean? = null,
+            chatHeaderTransparent: Boolean? = null,
+            chatInputTransparent: Boolean? = null,
+            forceAppBarContentColor: Boolean? = null,
+            appBarContentColorMode: String? = null,
+            chatHeaderHistoryIconColor: Int? = null,
+            chatHeaderPipIconColor: Int? = null,
+            chatHeaderOverlayMode: Boolean? = null,
+            useBackgroundBlur: Boolean? = null,
+            backgroundBlurRadius: Float? = null
     ) {
         context.userPreferencesDataStore.edit { preferences ->
             themeMode?.let { preferences[THEME_MODE] = it }
@@ -218,6 +323,19 @@ class UserPreferencesManager(private val context: Context) {
             backgroundMediaType?.let { preferences[BACKGROUND_MEDIA_TYPE] = it }
             videoBackgroundMuted?.let { preferences[VIDEO_BACKGROUND_MUTED] = it }
             videoBackgroundLoop?.let { preferences[VIDEO_BACKGROUND_LOOP] = it }
+            toolbarTransparent?.let { preferences[TOOLBAR_TRANSPARENT] = it }
+            useCustomStatusBarColor?.let { preferences[USE_CUSTOM_STATUS_BAR_COLOR] = it }
+            customStatusBarColor?.let { preferences[CUSTOM_STATUS_BAR_COLOR] = it }
+            statusBarTransparent?.let { preferences[STATUS_BAR_TRANSPARENT] = it }
+            chatHeaderTransparent?.let { preferences[CHAT_HEADER_TRANSPARENT] = it }
+            chatInputTransparent?.let { preferences[CHAT_INPUT_TRANSPARENT] = it }
+            forceAppBarContentColor?.let { preferences[FORCE_APP_BAR_CONTENT_COLOR_ENABLED] = it }
+            appBarContentColorMode?.let { preferences[APP_BAR_CONTENT_COLOR_MODE] = it }
+            chatHeaderHistoryIconColor?.let { preferences[CHAT_HEADER_HISTORY_ICON_COLOR] = it }
+            chatHeaderPipIconColor?.let { preferences[CHAT_HEADER_PIP_ICON_COLOR] = it }
+            chatHeaderOverlayMode?.let { preferences[CHAT_HEADER_OVERLAY_MODE] = it }
+            useBackgroundBlur?.let { preferences[USE_BACKGROUND_BLUR] = it }
+            backgroundBlurRadius?.let { preferences[BACKGROUND_BLUR_RADIUS] = it }
         }
     }
 
@@ -235,6 +353,19 @@ class UserPreferencesManager(private val context: Context) {
             preferences.remove(BACKGROUND_MEDIA_TYPE)
             preferences.remove(VIDEO_BACKGROUND_MUTED)
             preferences.remove(VIDEO_BACKGROUND_LOOP)
+            preferences.remove(TOOLBAR_TRANSPARENT)
+            preferences.remove(USE_CUSTOM_STATUS_BAR_COLOR)
+            preferences.remove(CUSTOM_STATUS_BAR_COLOR)
+            preferences.remove(STATUS_BAR_TRANSPARENT)
+            preferences.remove(CHAT_HEADER_TRANSPARENT)
+            preferences.remove(CHAT_INPUT_TRANSPARENT)
+            preferences.remove(FORCE_APP_BAR_CONTENT_COLOR_ENABLED)
+            preferences.remove(APP_BAR_CONTENT_COLOR_MODE)
+            preferences.remove(CHAT_HEADER_HISTORY_ICON_COLOR)
+            preferences.remove(CHAT_HEADER_PIP_ICON_COLOR)
+            preferences.remove(CHAT_HEADER_OVERLAY_MODE)
+            preferences.remove(USE_BACKGROUND_BLUR)
+            preferences.remove(BACKGROUND_BLUR_RADIUS)
         }
     }
 

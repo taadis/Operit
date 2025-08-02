@@ -177,36 +177,57 @@ object ComputerDesktopManager : IComputerDesktop {
                 try {
                     const el = document.querySelector('$selector');
                     if (!el) {
-                        return JSON.stringify({ success: false, message: 'Element not found.' });
+                        return JSON.stringify({ success: false, message: 'Element not found by selector.' });
                     }
-                    
-                    // Scroll into view to ensure visibility
+            
+                    // Scroll into view to ensure it's in the viewport
                     el.scrollIntoView({ block: 'center', inline: 'center' });
+            
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width === 0 || rect.height === 0) {
+                        return JSON.stringify({ success: false, message: 'Element has zero size.' });
+                    }
 
-                    // Dispatch a sequence of events to more closely mimic a user click
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+            
+                    // Check what's at the center of the element
+                    const topElement = document.elementFromPoint(centerX, centerY);
+                    if (!topElement) {
+                         return JSON.stringify({ success: false, message: 'Center of element is not interactive (elementFromPoint returned null).' });
+                    }
+
+                    // The element to click should be the one at the very top.
+                    const elementToClick = (el === topElement || el.contains(topElement)) ? topElement : el;
+                    
+                    // Proceed with a robust, human-like click event sequence on the determined element.
                     const dispatchMouseEvent = (type) => {
+                        // Pass coordinates to make the event more realistic
                         const event = new MouseEvent(type, {
                             bubbles: true,
                             cancelable: true,
-                            view: window
+                            view: window,
+                            clientX: centerX,
+                            clientY: centerY,
+                            screenX: centerX,
+                            screenY: centerY
                         });
-                        el.dispatchEvent(event);
+                        elementToClick.dispatchEvent(event);
                     };
-
+            
                     dispatchMouseEvent('mouseover');
                     dispatchMouseEvent('mousedown');
                     dispatchMouseEvent('mouseup');
-                    
-                    if (typeof el.click === 'function') {
-                        el.click();
-                    } else {
-                        // Fallback for elements without a click method
-                         dispatchMouseEvent('click');
+                    dispatchMouseEvent('click');
+            
+                    // As a final fallback, call the native click method.
+                    if (typeof elementToClick.click === 'function') {
+                        elementToClick.click();
                     }
-
-                    return JSON.stringify({ success: true, message: 'Element clicked successfully.' });
+            
+                    return JSON.stringify({ success: true, message: 'Element robustly clicked.' });
                 } catch (e) {
-                    return JSON.stringify({ success: false, message: 'An exception occurred: ' + e.message });
+                    return JSON.stringify({ success: false, message: 'An exception occurred during click: ' + e.message });
                 }
             })();
         """.trimIndent()
@@ -219,10 +240,23 @@ object ComputerDesktopManager : IComputerDesktop {
                 val jsonString = json.decodeFromString<String>(result)
                 val actionResult = json.decodeFromString<ActionResult>(jsonString)
                 Log.d("ComputerDesktopManager", "Click element with selector '$selector' returned: success=${actionResult.success}, message=${actionResult.message}")
-                continuation.resume(Pair(actionResult.success, actionResult.message))
+
+                if (continuation.isActive) {
+                     if (actionResult.success) {
+                        // Even with a robust click, some JS frameworks need a moment to update the DOM.
+                        // We will add a short delay here to increase stability.
+                        mainHandler.postDelayed({
+                             continuation.resume(Pair(actionResult.success, actionResult.message))
+                        }, 500)
+                    } else {
+                        continuation.resume(Pair(actionResult.success, actionResult.message))
+                    }
+                }
             } catch (e: Exception) {
                 Log.e("ComputerDesktopManager", "Failed to parse click result: $result", e)
-                continuation.resume(Pair(false, "Failed to parse result from JavaScript."))
+                if (continuation.isActive) {
+                    continuation.resume(Pair(false, "Failed to parse result from JavaScript."))
+                }
             }
         }
     }
@@ -348,12 +382,7 @@ object ComputerDesktopManager : IComputerDesktop {
     suspend fun clickElement(interaction_id: Int): Pair<Boolean, String> {
         val selector = interactionMap[interaction_id]
         return if (selector != null) {
-            mainHandler.post {
-                forceNextNavToNewTab = true
-            }
-            val result = clickElement(selector)
-            mainHandler.postDelayed({ forceNextNavToNewTab = false }, 500)
-            result
+            clickElement(selector)
         } else {
             val message = "No selector found for interaction_id: $interaction_id"
             Log.w("ComputerDesktopManager", message)

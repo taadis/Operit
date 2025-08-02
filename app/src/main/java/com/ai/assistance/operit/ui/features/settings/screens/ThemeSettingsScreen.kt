@@ -105,6 +105,45 @@ fun ThemeSettingsScreen() {
     val videoBackgroundLoop =
             preferencesManager.videoBackgroundLoop.collectAsState(initial = true).value
 
+    // Collect toolbar transparency setting
+    val toolbarTransparent =
+            preferencesManager.toolbarTransparent.collectAsState(initial = false).value
+
+    // Collect status bar color settings
+    val useCustomStatusBarColor =
+            preferencesManager.useCustomStatusBarColor.collectAsState(initial = false).value
+    val customStatusBarColor =
+            preferencesManager.customStatusBarColor.collectAsState(initial = null).value
+    val statusBarTransparent =
+            preferencesManager.statusBarTransparent.collectAsState(initial = false).value
+    val chatHeaderTransparent =
+            preferencesManager.chatHeaderTransparent.collectAsState(initial = false).value
+    val chatInputTransparent =
+            preferencesManager.chatInputTransparent.collectAsState(initial = false).value
+    val chatHeaderOverlayMode =
+            preferencesManager.chatHeaderOverlayMode.collectAsState(initial = false).value
+
+    // Collect AppBar content color settings
+    val forceAppBarContentColor =
+            preferencesManager.forceAppBarContentColor.collectAsState(initial = false).value
+    val appBarContentColorMode =
+            preferencesManager.appBarContentColorMode.collectAsState(
+                            initial = UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_LIGHT
+                    )
+                    .value
+
+    // Collect ChatHeader icon color settings
+    val chatHeaderHistoryIconColor =
+            preferencesManager.chatHeaderHistoryIconColor.collectAsState(initial = null).value
+    val chatHeaderPipIconColor =
+            preferencesManager.chatHeaderPipIconColor.collectAsState(initial = null).value
+
+    // Collect background blur settings
+    val useBackgroundBlur =
+            preferencesManager.useBackgroundBlur.collectAsState(initial = false).value
+    val backgroundBlurRadius =
+            preferencesManager.backgroundBlurRadius.collectAsState(initial = 10f).value
+
     // Default color definitions
     val defaultPrimaryColor = Color.Magenta.toArgb()
     val defaultSecondaryColor = Color.Blue.toArgb()
@@ -127,6 +166,33 @@ fun ThemeSettingsScreen() {
     var backgroundMediaTypeInput by remember { mutableStateOf(backgroundMediaType) }
     var videoBackgroundMutedInput by remember { mutableStateOf(videoBackgroundMuted) }
     var videoBackgroundLoopInput by remember { mutableStateOf(videoBackgroundLoop) }
+
+    // Toolbar transparency state
+    var toolbarTransparentInput by remember { mutableStateOf(toolbarTransparent) }
+
+    // Status bar color state
+    var useCustomStatusBarColorInput by remember { mutableStateOf(useCustomStatusBarColor) }
+    var customStatusBarColorInput by remember { mutableStateOf(customStatusBarColor ?: defaultPrimaryColor) }
+    var statusBarTransparentInput by remember { mutableStateOf(statusBarTransparent) }
+    var chatHeaderTransparentInput by remember { mutableStateOf(chatHeaderTransparent) }
+    var chatInputTransparentInput by remember { mutableStateOf(chatInputTransparent) }
+    var chatHeaderOverlayModeInput by remember { mutableStateOf(chatHeaderOverlayMode) }
+
+    // AppBar content color state
+    var forceAppBarContentColorInput by remember { mutableStateOf(forceAppBarContentColor) }
+    var appBarContentColorModeInput by remember { mutableStateOf(appBarContentColorMode) }
+
+    // ChatHeader icon color state
+    var chatHeaderHistoryIconColorInput by remember {
+        mutableStateOf(chatHeaderHistoryIconColor ?: Color.Gray.toArgb())
+    }
+    var chatHeaderPipIconColorInput by remember {
+        mutableStateOf(chatHeaderPipIconColor ?: Color.Gray.toArgb())
+    }
+
+    // Background blur state
+    var useBackgroundBlurInput by remember { mutableStateOf(useBackgroundBlur) }
+    var backgroundBlurRadiusInput by remember { mutableStateOf(backgroundBlurRadius) }
 
     var showColorPicker by remember { mutableStateOf(false) }
     var currentColorPickerMode by remember { mutableStateOf("primary") }
@@ -444,7 +510,20 @@ fun ThemeSettingsScreen() {
             backgroundImageOpacity,
             backgroundMediaType,
             videoBackgroundMuted,
-            videoBackgroundLoop
+            videoBackgroundLoop,
+            toolbarTransparent,
+            useCustomStatusBarColor,
+            customStatusBarColor,
+            statusBarTransparent,
+            chatHeaderTransparent,
+            chatInputTransparent,
+            chatHeaderOverlayMode,
+            forceAppBarContentColor,
+            appBarContentColorMode,
+            chatHeaderHistoryIconColor,
+            chatHeaderPipIconColor,
+            useBackgroundBlur,
+            backgroundBlurRadius
     ) {
         themeModeInput = themeMode
         useSystemThemeInput = useSystemTheme
@@ -457,6 +536,23 @@ fun ThemeSettingsScreen() {
         backgroundMediaTypeInput = backgroundMediaType
         videoBackgroundMutedInput = videoBackgroundMuted
         videoBackgroundLoopInput = videoBackgroundLoop
+        toolbarTransparentInput = toolbarTransparent
+        useCustomStatusBarColorInput = useCustomStatusBarColor
+        if (customStatusBarColor != null) customStatusBarColorInput = customStatusBarColor
+        statusBarTransparentInput = statusBarTransparent
+        chatHeaderTransparentInput = chatHeaderTransparent
+        chatInputTransparentInput = chatInputTransparent
+        chatHeaderOverlayModeInput = chatHeaderOverlayMode
+        forceAppBarContentColorInput = forceAppBarContentColor
+        appBarContentColorModeInput = appBarContentColorMode
+        if (chatHeaderHistoryIconColor != null) {
+            chatHeaderHistoryIconColorInput = chatHeaderHistoryIconColor
+        }
+        if (chatHeaderPipIconColor != null) {
+            chatHeaderPipIconColorInput = chatHeaderPipIconColor
+        }
+        useBackgroundBlurInput = useBackgroundBlur
+        backgroundBlurRadiusInput = backgroundBlurRadius
     }
 
     // Get background image state to check if we need opaque cards
@@ -578,6 +674,345 @@ fun ThemeSettingsScreen() {
                 title = stringResource(id = R.string.theme_title_color),
                 icon = Icons.Default.ColorLens
         )
+
+        // Add status bar color settings
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                        text = stringResource(id = R.string.theme_statusbar_color),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                // Status bar transparent switch
+                Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                                text = stringResource(id = R.string.theme_statusbar_transparent),
+                                style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                                text = stringResource(id = R.string.theme_statusbar_transparent_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                            checked = statusBarTransparentInput,
+                            onCheckedChange = {
+                                statusBarTransparentInput = it
+                                scope.launch {
+                                    preferencesManager.saveThemeSettings(statusBarTransparent = it)
+                                    showSaveSuccessMessage = true
+                                }
+                            }
+                    )
+                }
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                // Use custom status bar color switch
+                Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                                text = stringResource(id = R.string.theme_use_custom_statusbar_color),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (statusBarTransparentInput) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                                text = stringResource(id = R.string.theme_use_custom_statusbar_color_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (statusBarTransparentInput) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                            checked = useCustomStatusBarColorInput,
+                            enabled = !statusBarTransparentInput,
+                            onCheckedChange = {
+                                useCustomStatusBarColorInput = it
+                                scope.launch {
+                                    preferencesManager.saveThemeSettings(useCustomStatusBarColor = it)
+                                    showSaveSuccessMessage = true
+                                }
+                            }
+                    )
+                }
+
+                if (useCustomStatusBarColorInput) {
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    // Status bar color selection
+                    ColorSelectionItem(
+                            title = stringResource(id = R.string.theme_statusbar_color),
+                            color = Color(customStatusBarColorInput),
+                            enabled = !statusBarTransparentInput,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                if (!statusBarTransparentInput) {
+                                    currentColorPickerMode = "statusBar"
+                                    showColorPicker = true
+                                }
+                            }
+                    )
+                }
+            }
+        }
+
+
+        // Add toolbar transparency settings
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                        text = stringResource(id = R.string.theme_toolbar_transparent),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                // Toolbar transparency
+                Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = stringResource(id = R.string.theme_toolbar_transparent_desc), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                                text = stringResource(id = R.string.theme_toolbar_transparent_desc_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                            checked = toolbarTransparentInput,
+                            onCheckedChange = {
+                                toolbarTransparentInput = it
+                                scope.launch {
+                                    preferencesManager.saveThemeSettings(toolbarTransparent = it)
+                                    showSaveSuccessMessage = true
+                                }
+                            }
+                    )
+                }
+            }
+        }
+
+        // Chat header transparency
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                        text = stringResource(id = R.string.theme_chat_header_transparent_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = stringResource(id = R.string.theme_chat_header_transparent), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                                text = stringResource(id = R.string.theme_chat_header_transparent_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                            checked = chatHeaderTransparentInput,
+                            onCheckedChange = {
+                                chatHeaderTransparentInput = it
+                                scope.launch {
+                                    preferencesManager.saveThemeSettings(chatHeaderTransparent = it)
+                                    showSaveSuccessMessage = true
+                                }
+                            }
+                    )
+                }
+
+                if (chatHeaderTransparentInput) {
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                    text = stringResource(id = R.string.theme_chat_header_overlay_mode),
+                                    style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                    text = stringResource(id = R.string.theme_chat_header_overlay_mode_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                                checked = chatHeaderOverlayModeInput,
+                                onCheckedChange = {
+                                    chatHeaderOverlayModeInput = it
+                                    scope.launch {
+                                        preferencesManager.saveThemeSettings(
+                                                chatHeaderOverlayMode = it
+                                        )
+                                        showSaveSuccessMessage = true
+                                    }
+                                }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Chat input transparency
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                        text = stringResource(id = R.string.theme_chat_input_transparent_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = stringResource(id = R.string.theme_chat_input_transparent), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                                text = stringResource(id = R.string.theme_chat_input_transparent_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                            checked = chatInputTransparentInput,
+                            onCheckedChange = {
+                                chatInputTransparentInput = it
+                                scope.launch {
+                                    preferencesManager.saveThemeSettings(chatInputTransparent = it)
+                                    showSaveSuccessMessage = true
+                                }
+                            }
+                    )
+                }
+            }
+        }
+
+        // Add AppBar content color settings
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                        text = stringResource(id = R.string.theme_appbar_content_color_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                // Force AppBar content color
+                Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                                text = stringResource(id = R.string.theme_force_appbar_content_color),
+                                style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                                text = stringResource(id = R.string.theme_force_appbar_content_color_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                            checked = forceAppBarContentColorInput,
+                            onCheckedChange = {
+                                forceAppBarContentColorInput = it
+                                scope.launch {
+                                    preferencesManager.saveThemeSettings(forceAppBarContentColor = it)
+                                    showSaveSuccessMessage = true
+                                }
+                            }
+                    )
+                }
+
+                if (forceAppBarContentColorInput) {
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    Text(
+                            text = stringResource(id = R.string.theme_appbar_content_color_mode),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ThemeModeOption(
+                                title = stringResource(id = R.string.theme_appbar_content_color_light),
+                                selected = appBarContentColorModeInput == UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_LIGHT,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    appBarContentColorModeInput = UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_LIGHT
+                                    scope.launch {
+                                        preferencesManager.saveThemeSettings(appBarContentColorMode = UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_LIGHT)
+                                        showSaveSuccessMessage = true
+                                    }
+                                }
+                        )
+                        ThemeModeOption(
+                                title = stringResource(id = R.string.theme_appbar_content_color_dark),
+                                selected = appBarContentColorModeInput == UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_DARK,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    appBarContentColorModeInput = UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_DARK
+                                    scope.launch {
+                                        preferencesManager.saveThemeSettings(appBarContentColorMode = UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_DARK)
+                                        showSaveSuccessMessage = true
+                                    }
+                                }
+                        )
+                    }
+                }
+            }
+        }
+
+        // ChatHeader icon color settings
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                        text = stringResource(id = R.string.theme_chat_header_icons_color_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                )
+                ColorSelectionItem(
+                        title = stringResource(id = R.string.theme_chat_header_history_icon_color),
+                        color = Color(chatHeaderHistoryIconColorInput),
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            currentColorPickerMode = "historyIcon"
+                            showColorPicker = true
+                        }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                ColorSelectionItem(
+                        title = stringResource(id = R.string.theme_chat_header_pip_icon_color),
+                        color = Color(chatHeaderPipIconColorInput),
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            currentColorPickerMode = "pipIcon"
+                            showColorPicker = true
+                        }
+                )
+            }
+        }
 
         // Custom color settings
         Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
@@ -1202,6 +1637,82 @@ fun ThemeSettingsScreen() {
 
                     // Add a gap, ensure slider below has enough space
                     Spacer(modifier = Modifier.height(16.dp))
+
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    // Background blur settings
+                    Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                    text = stringResource(id = R.string.theme_background_blur),
+                                    style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                    text = stringResource(id = R.string.theme_background_blur_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                                checked = useBackgroundBlurInput,
+                                onCheckedChange = {
+                                    useBackgroundBlurInput = it
+                                    scope.launch {
+                                        preferencesManager.saveThemeSettings(useBackgroundBlur = it)
+                                        showSaveSuccessMessage = true
+                                    }
+                                }
+                        )
+                    }
+
+                    if (useBackgroundBlurInput) {
+                        Text(
+                                text =
+                                        stringResource(id = R.string.theme_background_blur_radius) +
+                                                ": ${backgroundBlurRadiusInput.toInt()}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+                        )
+
+                        // Remember last saved value for debounce save operation
+                        var lastSavedBlurRadius by remember { mutableStateOf(backgroundBlurRadiusInput) }
+                        val blurInteractionSource = remember { MutableInteractionSource() }
+
+                        val onBlurValueChangeFinished = remember {
+                            {
+                                if (kotlin.math.abs(lastSavedBlurRadius - backgroundBlurRadiusInput) >
+                                                0.1f
+                                ) {
+                                    scope.launch {
+                                        preferencesManager.saveThemeSettings(
+                                                backgroundBlurRadius = backgroundBlurRadiusInput
+                                        )
+                                        lastSavedBlurRadius = backgroundBlurRadiusInput
+                                        showSaveSuccessMessage = true
+                                    }
+                                }
+                            }
+                        }
+
+                        // Use Box to wrap slider, solve drag issue
+                        Box(
+                                modifier =
+                                        Modifier.fillMaxWidth().height(56.dp).padding(vertical = 8.dp)
+                        ) {
+                            Slider(
+                                    value = backgroundBlurRadiusInput,
+                                    onValueChange = { backgroundBlurRadiusInput = it },
+                                    onValueChangeFinished = onBlurValueChangeFinished,
+                                    valueRange = 1f..30f,
+                                    interactionSource = blurInteractionSource,
+                                    modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1223,6 +1734,19 @@ fun ThemeSettingsScreen() {
                         backgroundMediaTypeInput = UserPreferencesManager.MEDIA_TYPE_IMAGE
                         videoBackgroundMutedInput = true
                         videoBackgroundLoopInput = true
+                        toolbarTransparentInput = false
+                        useCustomStatusBarColorInput = false
+                        customStatusBarColorInput = defaultPrimaryColor
+                        statusBarTransparentInput = false
+                        chatHeaderTransparentInput = false
+                        chatInputTransparentInput = false
+                        chatHeaderOverlayModeInput = false
+                        forceAppBarContentColorInput = false
+                        appBarContentColorModeInput = UserPreferencesManager.APP_BAR_CONTENT_COLOR_MODE_LIGHT
+                        chatHeaderHistoryIconColorInput = Color.Gray.toArgb()
+                        chatHeaderPipIconColorInput = Color.Gray.toArgb()
+                        useBackgroundBlurInput = false
+                        backgroundBlurRadiusInput = 10f
                         showSaveSuccessMessage = true
                     }
                 },
@@ -1251,22 +1775,54 @@ fun ThemeSettingsScreen() {
                     currentColorPickerMode = currentColorPickerMode,
                     primaryColorInput = primaryColorInput,
                     secondaryColorInput = secondaryColorInput,
-                    onColorSelected = { primaryColor, secondaryColor ->
+                    statusBarColorInput = customStatusBarColorInput,
+                    historyIconColorInput = chatHeaderHistoryIconColorInput,
+                    pipIconColorInput = chatHeaderPipIconColorInput,
+                    onColorSelected = {
+                        primaryColor,
+                        secondaryColor,
+                        statusBarColor,
+                        historyIconColor,
+                        pipIconColor ->
                         primaryColor?.let { primaryColorInput = it }
                         secondaryColor?.let { secondaryColorInput = it }
+                        statusBarColor?.let { customStatusBarColorInput = it }
+                        historyIconColor?.let { chatHeaderHistoryIconColorInput = it }
+                        pipIconColor?.let { chatHeaderPipIconColorInput = it }
 
                         // Save the colors
                         scope.launch {
-                            if (currentColorPickerMode == "primary" && primaryColor != null) {
-                                preferencesManager.saveThemeSettings(
-                                        customPrimaryColor = primaryColor
-                                )
-                            } else if (currentColorPickerMode == "secondary" &&
-                                            secondaryColor != null
-                            ) {
-                                preferencesManager.saveThemeSettings(
-                                        customSecondaryColor = secondaryColor
-                                )
+                            when (currentColorPickerMode) {
+                                "primary" ->
+                                        primaryColor?.let {
+                                            preferencesManager.saveThemeSettings(
+                                                    customPrimaryColor = it
+                                            )
+                                        }
+                                "secondary" ->
+                                        secondaryColor?.let {
+                                            preferencesManager.saveThemeSettings(
+                                                    customSecondaryColor = it
+                                            )
+                                        }
+                                "statusBar" ->
+                                        statusBarColor?.let {
+                                            preferencesManager.saveThemeSettings(
+                                                    customStatusBarColor = it
+                                            )
+                                        }
+                                "historyIcon" ->
+                                        historyIconColor?.let {
+                                            preferencesManager.saveThemeSettings(
+                                                    chatHeaderHistoryIconColor = it
+                                            )
+                                        }
+                                "pipIcon" ->
+                                        pipIconColor?.let {
+                                            preferencesManager.saveThemeSettings(
+                                                    chatHeaderPipIconColor = it
+                                            )
+                                        }
                             }
                             showSaveSuccessMessage = true
                         }

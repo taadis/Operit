@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
@@ -36,6 +37,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImagePainter
@@ -49,6 +51,7 @@ import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
 import com.google.android.exoplayer2.ui.StyledPlayerView
 import java.io.File
 import kotlinx.coroutines.launch
+import androidx.compose.ui.unit.dp
 
 private val DarkColorScheme =
         darkColorScheme(primary = Purple80, secondary = PurpleGrey80, tertiary = Pink80)
@@ -103,6 +106,18 @@ fun OperitTheme(content: @Composable () -> Unit) {
             preferencesManager.videoBackgroundMuted.collectAsState(initial = true)
     val videoBackgroundLoop by preferencesManager.videoBackgroundLoop.collectAsState(initial = true)
 
+    // 获取状态栏颜色设置
+    val useCustomStatusBarColor by
+            preferencesManager.useCustomStatusBarColor.collectAsState(initial = false)
+    val customStatusBarColorValue by
+            preferencesManager.customStatusBarColor.collectAsState(initial = null)
+    val statusBarTransparent by
+            preferencesManager.statusBarTransparent.collectAsState(initial = false)
+
+    // 获取背景模糊设置
+    val useBackgroundBlur by preferencesManager.useBackgroundBlur.collectAsState(initial = false)
+    val backgroundBlurRadius by preferencesManager.backgroundBlurRadius.collectAsState(initial = 10f)
+
     // 确定是否使用暗色主题
     val systemDarkTheme = isSystemInDarkTheme()
     val darkTheme =
@@ -147,8 +162,22 @@ fun OperitTheme(content: @Composable () -> Unit) {
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            (view.context as Activity).window.statusBarColor = colorScheme.primary.toArgb()
-            ViewCompat.getWindowInsetsController(view)?.isAppearanceLightStatusBars = !darkTheme
+            val window = (view.context as Activity).window
+            if (statusBarTransparent) {
+                window.statusBarColor = Color.Transparent.toArgb()
+                WindowCompat.setDecorFitsSystemWindows(window, false)
+            } else {
+                WindowCompat.setDecorFitsSystemWindows(window, true)
+                val statusBarColor =
+                        if (useCustomStatusBarColor && customStatusBarColorValue != null) {
+                            customStatusBarColorValue!!.toInt()
+                        } else {
+                            colorScheme.primary.toArgb()
+                        }
+                window.statusBarColor = statusBarColor
+                ViewCompat.getWindowInsetsController(view)?.isAppearanceLightStatusBars =
+                        !isColorLight(Color(statusBarColor))
+            }
         }
     }
 
@@ -315,7 +344,12 @@ fun OperitTheme(content: @Composable () -> Unit) {
                             contentDescription = "Background Image",
                             modifier =
                                     Modifier.fillMaxSize()
-                                            .alpha(backgroundImageOpacity), // 使用设置的不透明度
+                                            .alpha(backgroundImageOpacity) // 使用设置的不透明度
+                                            .then(
+                                                    if (useBackgroundBlur)
+                                                            Modifier.blur(radius = backgroundBlurRadius.dp)
+                                                    else Modifier
+                                            ),
                             contentScale = ContentScale.Crop
                     )
                 } else {

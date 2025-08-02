@@ -49,13 +49,30 @@ fun ColorPickerDialog(
     currentColorPickerMode: String,
     primaryColorInput: Int,
     secondaryColorInput: Int,
-    onColorSelected: (primaryColor: Int?, secondaryColor: Int?) -> Unit,
+    statusBarColorInput: Int,
+    historyIconColorInput: Int,
+    pipIconColorInput: Int,
+    onColorSelected:
+            (
+                    primaryColor: Int?,
+                    secondaryColor: Int?,
+                    statusBarColor: Int?,
+                    historyIconColor: Int?,
+                    pipIconColor: Int?
+            ) -> Unit,
     onDismiss: () -> Unit
 ) {
     if (!showColorPicker) return
-    
+
     val currentColorForPicker =
-        if (currentColorPickerMode == "primary") primaryColorInput else secondaryColorInput
+            when (currentColorPickerMode) {
+                "primary" -> primaryColorInput
+                "secondary" -> secondaryColorInput
+                "statusBar" -> statusBarColorInput
+                "historyIcon" -> historyIconColorInput
+                "pipIcon" -> pipIconColorInput
+                else -> primaryColorInput
+            }
     val currentColor = Color(currentColorForPicker)
     val pickerController = rememberColorPickerController()
     val scope = rememberCoroutineScope()
@@ -75,8 +92,16 @@ fun ColorPickerDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = if (currentColorPickerMode == "primary") "选择主色" else "选择次色",
-                style = MaterialTheme.typography.titleMedium
+                    text =
+                            when (currentColorPickerMode) {
+                                "primary" -> "选择主色"
+                                "secondary" -> "选择次色"
+                                "statusBar" -> "选择状态栏颜色"
+                                "historyIcon" -> "选择历史记录图标颜色"
+                                "pipIcon" -> "选择悬浮窗图标颜色"
+                                else -> "选择颜色"
+                            },
+                    style = MaterialTheme.typography.titleMedium
             )
         },
         text = {
@@ -166,10 +191,12 @@ fun ColorPickerDialog(
                     onColorChanged = { colorEnvelope: ColorEnvelope ->
                         if (colorEnvelope.fromUser) {
                             val newColor = colorEnvelope.color.toArgb()
-                            if (currentColorPickerMode == "primary") {
-                                onColorSelected(newColor, null)
-                            } else {
-                                onColorSelected(null, newColor)
+                            when (currentColorPickerMode) {
+                                "primary" -> onColorSelected(newColor, null, null, null, null)
+                                "secondary" -> onColorSelected(null, newColor, null, null, null)
+                                "statusBar" -> onColorSelected(null, null, newColor, null, null)
+                                "historyIcon" -> onColorSelected(null, null, null, newColor, null)
+                                "pipIcon" -> onColorSelected(null, null, null, null, newColor)
                             }
                             previewColor = colorEnvelope.color
                         }
@@ -212,10 +239,12 @@ fun ColorPickerDialog(
                 ) {
                     materialColors.take(7).forEach { color ->
                         PresetColorItem(color) {
-                            if (currentColorPickerMode == "primary") {
-                                onColorSelected(it.toArgb(), null)
-                            } else {
-                                onColorSelected(null, it.toArgb())
+                            when (currentColorPickerMode) {
+                                "primary" -> onColorSelected(it.toArgb(), null, null, null, null)
+                                "secondary" -> onColorSelected(null, it.toArgb(), null, null, null)
+                                "statusBar" -> onColorSelected(null, null, it.toArgb(), null, null)
+                                "historyIcon" -> onColorSelected(null, null, null, it.toArgb(), null)
+                                "pipIcon" -> onColorSelected(null, null, null, null, it.toArgb())
                             }
                             pickerController.setWheelColor(it)
                             previewColor = it
@@ -229,10 +258,12 @@ fun ColorPickerDialog(
                 ) {
                     materialColors.takeLast(7).forEach { color ->
                         PresetColorItem(color) {
-                            if (currentColorPickerMode == "primary") {
-                                onColorSelected(it.toArgb(), null)
-                            } else {
-                                onColorSelected(null, it.toArgb())
+                            when (currentColorPickerMode) {
+                                "primary" -> onColorSelected(it.toArgb(), null, null, null, null)
+                                "secondary" -> onColorSelected(null, it.toArgb(), null, null, null)
+                                "statusBar" -> onColorSelected(null, null, it.toArgb(), null, null)
+                                "historyIcon" -> onColorSelected(null, null, null, it.toArgb(), null)
+                                "pipIcon" -> onColorSelected(null, null, null, null, it.toArgb())
                             }
                             pickerController.setWheelColor(it)
                             previewColor = it

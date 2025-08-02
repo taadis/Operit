@@ -21,7 +21,9 @@ fun ChatHeader(
         currentChatTitle: String?,
         modifier: Modifier = Modifier,
         onLaunchFloatingWindow: () -> Unit = {},
-        isFloatingMode: Boolean = false
+        isFloatingMode: Boolean = false,
+        historyIconColor: Int? = null,
+        pipIconColor: Int? = null
 ) {
         Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -49,12 +51,12 @@ fun ChatHeader(
                                         contentDescription =
                                                 if (showChatHistorySelector) "隐藏历史" else "显示历史",
                                         tint =
-                                                if (showChatHistorySelector)
-                                                        MaterialTheme.colorScheme.primary
-                                                else
-                                                        MaterialTheme.colorScheme.onSurface.copy(
-                                                                alpha = 0.7f
-                                                        ),
+                                                historyIconColor?.let { Color(it) }
+                                                        ?: if (showChatHistorySelector)
+                                                                MaterialTheme.colorScheme.primary
+                                                        else
+                                                                MaterialTheme.colorScheme.onSurface
+                                                                        .copy(alpha = 0.7f),
                                         modifier = Modifier.size(20.dp)
                                 )
                         }
@@ -81,12 +83,12 @@ fun ChatHeader(
                                         contentDescription =
                                                 if (isFloatingMode) "关闭悬浮窗" else "开启悬浮窗",
                                         tint =
-                                                if (isFloatingMode)
-                                                        MaterialTheme.colorScheme.primary
-                                                else
-                                                        MaterialTheme.colorScheme.onSurface.copy(
-                                                                alpha = 0.7f
-                                                        ),
+                                                pipIconColor?.let { Color(it) }
+                                                        ?: if (isFloatingMode)
+                                                                MaterialTheme.colorScheme.primary
+                                                        else
+                                                                MaterialTheme.colorScheme.onSurface
+                                                                        .copy(alpha = 0.7f),
                                         modifier = Modifier.size(20.dp)
                                 )
                         }

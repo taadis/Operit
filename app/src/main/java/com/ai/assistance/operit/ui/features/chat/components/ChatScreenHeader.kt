@@ -70,10 +70,14 @@ fun useFloatingWindowLauncher(
 @SuppressLint("StateFlowValueCalledInComposition")
 @Composable
 fun ChatScreenHeader(
+        modifier: Modifier = Modifier,
         actualViewModel: ChatViewModel,
         showChatHistorySelector: Boolean,
         chatHistories: List<ChatHistory>,
-        currentChatId: String
+        currentChatId: String,
+        chatHeaderTransparent: Boolean,
+        chatHeaderHistoryIconColor: Int?,
+        chatHeaderPipIconColor: Int?
 ) {
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
@@ -97,8 +101,12 @@ fun ChatScreenHeader(
 
     Box(
             modifier =
-                    Modifier.fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                    modifier
+                            .fillMaxWidth()
+                            .background(
+                                    if (chatHeaderTransparent) Color.Transparent
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                            )
                             .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
         // 左侧：聊天历史按钮
@@ -113,7 +121,9 @@ fun ChatScreenHeader(
                     currentChatTitle = currentChatTitle,
                     modifier = Modifier,
                     isFloatingMode = actualViewModel.isFloatingMode.value,
-                    onLaunchFloatingWindow = launchFloatingWindow
+                    onLaunchFloatingWindow = launchFloatingWindow,
+                    historyIconColor = chatHeaderHistoryIconColor,
+                    pipIconColor = chatHeaderPipIconColor
             )
         }
 
