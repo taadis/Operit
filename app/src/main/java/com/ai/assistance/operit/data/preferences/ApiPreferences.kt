@@ -51,6 +51,9 @@ class ApiPreferences(private val context: Context) {
         // Key for Context Length
         val CONTEXT_LENGTH = floatPreferencesKey("context_length")
 
+        // Key for Summary Token Threshold
+        val SUMMARY_TOKEN_THRESHOLD = floatPreferencesKey("summary_token_threshold")
+
         // Custom Prompt Settings
         val CUSTOM_INTRO_PROMPT = stringPreferencesKey("custom_intro_prompt")
         val CUSTOM_TONE_PROMPT = stringPreferencesKey("custom_tone_prompt")
@@ -109,6 +112,9 @@ class ApiPreferences(private val context: Context) {
 
         // Default value for Context Length (in K)
         const val DEFAULT_CONTEXT_LENGTH = 36.0f
+
+        // Default value for Summary Token Threshold
+        const val DEFAULT_SUMMARY_TOKEN_THRESHOLD = 0.65f
 
         // Default values for custom prompts
         const val DEFAULT_INTRO_PROMPT = "你是Operit，一个全能AI助手，旨在解决用户提出的任何任务。你有各种工具可以调用，以高效完成复杂的请求。"
@@ -298,6 +304,12 @@ class ApiPreferences(private val context: Context) {
             preferences[CONTEXT_LENGTH] ?: DEFAULT_CONTEXT_LENGTH
         }
 
+    // Flow for Summary Token Threshold
+    val summaryTokenThresholdFlow: Flow<Float> =
+        context.apiDataStore.data.map { preferences ->
+            preferences[SUMMARY_TOKEN_THRESHOLD] ?: DEFAULT_SUMMARY_TOKEN_THRESHOLD
+        }
+
     // Custom Prompt Flows
     val customIntroPromptFlow: Flow<String> =
             context.apiDataStore.data.map { preferences ->
@@ -427,6 +439,13 @@ class ApiPreferences(private val context: Context) {
     suspend fun saveContextLength(length: Float) {
         context.apiDataStore.edit { preferences ->
             preferences[CONTEXT_LENGTH] = length
+        }
+    }
+
+    // Save Summary Token Threshold
+    suspend fun saveSummaryTokenThreshold(threshold: Float) {
+        context.apiDataStore.edit { preferences ->
+            preferences[SUMMARY_TOKEN_THRESHOLD] = threshold
         }
     }
 

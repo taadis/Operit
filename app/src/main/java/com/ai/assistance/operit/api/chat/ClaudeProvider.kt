@@ -64,6 +64,87 @@ class ClaudeProvider(
         activeCall = null
     }
 
+    /**
+     * 构建Claude的消息体和计算Token的核心逻辑
+     */
+    private fun buildMessagesAndCountTokens(
+            message: String,
+            chatHistory: List<Pair<String, String>>
+    ): Triple<JSONArray, String?, Int> {
+        var tokenCount = 0
+        val messagesArray = JSONArray()
+
+        // 提取系统消息
+        val systemMessages = chatHistory.filter { it.first.equals("system", ignoreCase = true) }
+        var systemPrompt: String? = null
+
+        if (systemMessages.isNotEmpty()) {
+            systemPrompt = systemMessages.joinToString("\n\n") { it.second }
+            tokenCount += ChatUtils.estimateTokenCount(systemPrompt)
+        }
+
+        // 处理用户和助手消息
+        val standardizedHistory =
+                ChatUtils.mapChatHistoryToStandardRoles(chatHistory).filter {
+                    it.first != "system"
+                }
+
+        // 添加历史消息
+        for ((role, content) in standardizedHistory) {
+            val messageObject = JSONObject()
+            val claudeRole = if (role == "assistant") "assistant" else "user"
+            messageObject.put("role", claudeRole)
+
+            val contentObject = JSONObject().apply {
+                put("type", "text")
+                put("text", content)
+            }
+            val contentArray = JSONArray().apply { put(contentObject) }
+            messageObject.put("content", contentArray)
+            messagesArray.put(messageObject)
+            tokenCount += ChatUtils.estimateTokenCount(content)
+        }
+
+        // 添加当前用户消息
+        val lastMessageIndex = messagesArray.length() - 1
+        val lastMessageRole =
+                if (lastMessageIndex >= 0) {
+                    messagesArray.getJSONObject(lastMessageIndex).getString("role")
+                } else null
+
+        if (lastMessageRole != "user") {
+            val userMessage = JSONObject().apply {
+                put("role", "user")
+                val userContentObject = JSONObject().apply {
+                    put("type", "text")
+                    put("text", message)
+                }
+                val userContentArray = JSONArray().apply { put(userContentObject) }
+                put("content", userContentArray)
+            }
+            messagesArray.put(userMessage)
+            tokenCount += ChatUtils.estimateTokenCount(message)
+        } else {
+            val lastMessage = messagesArray.getJSONObject(lastMessageIndex)
+            val lastContentArray = lastMessage.getJSONArray("content")
+            val lastContentObject = lastContentArray.getJSONObject(0)
+            val existingText = lastContentObject.getString("text")
+            lastContentObject.put("text", existingText + "\n" + message)
+            tokenCount += ChatUtils.estimateTokenCount(message)
+        }
+
+        return Triple(messagesArray, systemPrompt, tokenCount)
+    }
+
+
+    override suspend fun calculateInputTokens(
+            message: String,
+            chatHistory: List<Pair<String, String>>
+    ): Int {
+        val (_, _, tokenCount) = buildMessagesAndCountTokens(message, chatHistory)
+        return tokenCount
+    }
+
     // 创建Claude API请求体
     private fun createRequestBody(
             message: String,
@@ -78,97 +159,14 @@ class ClaudeProvider(
         // 添加已启用的模型参数
         addParameters(jsonObject, modelParameters)
 
-        // Claude使用messages格式，但与OpenAI稍有不同
-        val messagesArray = JSONArray()
-
-        // 提取系统消息
-        val systemMessages = chatHistory.filter { it.first.equals("system", ignoreCase = true) }
-        var systemPrompt: String? = null
-
-        if (systemMessages.isNotEmpty()) {
-            // Claude只支持一个系统消息，所以我们需要合并所有系统消息
-            systemPrompt = systemMessages.joinToString("\n\n") { it.second }
-        }
-
-        // 处理用户和助手消息
-        val standardizedHistory =
-                ChatUtils.mapChatHistoryToStandardRoles(chatHistory).filter {
-                    it.first != "system"
-                } // 系统消息已单独处理
-
-        // 添加历史消息
-        for ((role, content) in standardizedHistory) {
-            val messageObject = JSONObject()
-
-            // Claude使用"assistant"而不是"model"
-            val claudeRole =
-                    when (role) {
-                        "assistant" -> "assistant"
-                        else -> "user"
-                    }
-
-            messageObject.put("role", claudeRole)
-
-            // 创建消息内容
-            val contentObject = JSONObject()
-            contentObject.put("type", "text")
-            contentObject.put("text", content)
-
-            // Claude API使用"content"数组
-            val contentArray = JSONArray()
-            contentArray.put(contentObject)
-            messageObject.put("content", contentArray)
-
-            messagesArray.put(messageObject)
-
-            // 计算输入token
-            _inputTokenCount += ChatUtils.estimateTokenCount(content)
-        }
-
-        // 添加当前用户消息
-        val lastMessageIndex = messagesArray.length() - 1
-        val lastMessageRole =
-                if (lastMessageIndex >= 0) {
-                    messagesArray.getJSONObject(lastMessageIndex).getString("role")
-                } else null
-
-        if (lastMessageRole != "user") {
-            // 添加新的用户消息
-            val userMessage = JSONObject()
-            userMessage.put("role", "user")
-
-            val userContentObject = JSONObject()
-            userContentObject.put("type", "text")
-            userContentObject.put("text", message)
-
-            val userContentArray = JSONArray()
-            userContentArray.put(userContentObject)
-            userMessage.put("content", userContentArray)
-
-            messagesArray.put(userMessage)
-
-            // 计算当前消息的token
-            _inputTokenCount += ChatUtils.estimateTokenCount(message)
-        } else {
-            // 如果上一条消息也是用户，将当前消息与上一条合并
-            Log.d("AIService", "合并连续的用户消息")
-            val lastMessage = messagesArray.getJSONObject(lastMessageIndex)
-            val lastContentArray = lastMessage.getJSONArray("content")
-            val lastContentObject = lastContentArray.getJSONObject(0)
-            val existingText = lastContentObject.getString("text")
-
-            lastContentObject.put("text", existingText + "\n" + message)
-
-            // 重新计算合并后消息的token
-            _inputTokenCount += ChatUtils.estimateTokenCount(message)
-        }
+        val (messagesArray, systemPrompt, tokenCount) = buildMessagesAndCountTokens(message, chatHistory)
+        _inputTokenCount = tokenCount
 
         jsonObject.put("messages", messagesArray)
 
         // Claude对系统消息的处理有所不同，它使用system参数
         if (systemPrompt != null) {
             jsonObject.put("system", systemPrompt)
-            _inputTokenCount += ChatUtils.estimateTokenCount(systemPrompt)
         }
 
         // 添加extended thinking支持

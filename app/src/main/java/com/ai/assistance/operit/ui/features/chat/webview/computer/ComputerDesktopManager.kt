@@ -176,11 +176,35 @@ object ComputerDesktopManager : IComputerDesktop {
             (function() {
                 try {
                     const el = document.querySelector('$selector');
-                    if (el && typeof el.click === 'function') {
-                        el.click();
-                        return JSON.stringify({ success: true, message: 'Element clicked successfully.' });
+                    if (!el) {
+                        return JSON.stringify({ success: false, message: 'Element not found.' });
                     }
-                    return JSON.stringify({ success: false, message: 'Element not found or is not clickable.' });
+                    
+                    // Scroll into view to ensure visibility
+                    el.scrollIntoView({ block: 'center', inline: 'center' });
+
+                    // Dispatch a sequence of events to more closely mimic a user click
+                    const dispatchMouseEvent = (type) => {
+                        const event = new MouseEvent(type, {
+                            bubbles: true,
+                            cancelable: true,
+                            view: window
+                        });
+                        el.dispatchEvent(event);
+                    };
+
+                    dispatchMouseEvent('mouseover');
+                    dispatchMouseEvent('mousedown');
+                    dispatchMouseEvent('mouseup');
+                    
+                    if (typeof el.click === 'function') {
+                        el.click();
+                    } else {
+                        // Fallback for elements without a click method
+                         dispatchMouseEvent('click');
+                    }
+
+                    return JSON.stringify({ success: true, message: 'Element clicked successfully.' });
                 } catch (e) {
                     return JSON.stringify({ success: false, message: 'An exception occurred: ' + e.message });
                 }
@@ -213,6 +237,10 @@ object ComputerDesktopManager : IComputerDesktop {
                     if (!el) {
                         return JSON.stringify({ success: false, message: 'Element not found.' });
                     }
+                    
+                    // Scroll into view and focus the element before typing
+                    el.scrollIntoView({ block: 'center', inline: 'center' });
+                    el.focus();
                     
                     const tagName = el.tagName.toUpperCase();
                     if (tagName !== 'INPUT' && tagName !== 'TEXTAREA' && !el.isContentEditable) {

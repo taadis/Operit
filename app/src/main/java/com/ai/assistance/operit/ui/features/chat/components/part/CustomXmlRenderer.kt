@@ -286,8 +286,7 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
 
         // 提取状态内容 - 只有在非特殊状态类型时才需要
         val statusContent =
-                if (statusType !in listOf("completion", "complete", "wait_for_user_need", "warning")
-                ) {
+                if (statusType !in listOf("completion", "complete", "wait_for_user_need")) {
                     extractContentFromXml(content, "status")
                 } else {
                     "" // 特殊状态类型不需要内容
@@ -317,7 +316,9 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
                 when (statusType) {
                     "completion", "complete" -> "✓ Task completed"
                     "wait_for_user_need" -> "✓ Ready for further assistance"
-                    "warning" -> "Warning: AI made a mistake"
+                    "warning" ->
+                            if (statusContent.isNotBlank()) statusContent
+                            else "Warning: AI made a mistake"
                     else -> statusContent
                 }
 
@@ -337,7 +338,8 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
                                 "warning" -> MaterialTheme.colorScheme.error
                                 else -> textColor
                             },
-                    modifier = Modifier.padding(12.dp)
+                    modifier = Modifier.padding(12.dp),
+                    maxLines = if (statusType == "warning") 1 else Int.MAX_VALUE
             )
         }
     }

@@ -119,6 +119,7 @@ fun AIChatScreen(
     val enableThinkingGuidance by
             actualViewModel.enableThinkingGuidance.collectAsState() // 收集思考引导状态
     val enableMemoryAttachment by actualViewModel.enableMemoryAttachment.collectAsState()
+    val summaryTokenThreshold by actualViewModel.summaryTokenThreshold.collectAsState()
     val showChatHistorySelector by actualViewModel.showChatHistorySelector.collectAsState()
     val chatHistories by actualViewModel.chatHistories.collectAsState()
     val currentChatId by actualViewModel.currentChatId.collectAsState()
@@ -544,6 +545,10 @@ fun AIChatScreen(
                             onContextLengthChange = { actualViewModel.updateContextLength(it) },
                             enableMemoryAttachment = enableMemoryAttachment,
                             onToggleMemoryAttachment = { actualViewModel.toggleMemoryAttachment() },
+                            summaryTokenThreshold = summaryTokenThreshold,
+                            onSummaryTokenThresholdChange = {
+                                actualViewModel.updateSummaryTokenThreshold(it)
+                            },
                             onNavigateToUserPreferences = onNavigateToUserPreferences,
                             onNavigateToModelConfig = onNavigateToModelConfig,
                             onNavigateToModelPrompts = onNavigateToModelPrompts

@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.chat.webview.workspace
 
+import android.annotation.SuppressLint
 import android.view.MotionEvent
 import android.webkit.WebView
 import androidx.compose.animation.*
@@ -40,6 +41,7 @@ val OpenFileInfo.isHtml: Boolean
     get() = name.endsWith(".html", ignoreCase = true) || name.endsWith(".htm", ignoreCase = true)
 
 /** VSCode风格的工作区管理器组件 集成了WebView预览和文件管理功能 */
+@SuppressLint("ClickableViewAccessibility")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun WorkspaceManager(

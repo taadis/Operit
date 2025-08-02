@@ -72,10 +72,6 @@ class MessageProcessingDelegate(
         _userMessage.value = message
     }
 
-    fun sendUserMessage(chatId: String? = null) {
-        sendUserMessage(emptyList(), chatId)
-    }
-
     fun scrollToBottom() {
         _scrollToBottomEvent.tryEmit(Unit)
     }
@@ -87,7 +83,9 @@ class MessageProcessingDelegate(
             promptFunctionType: PromptFunctionType = PromptFunctionType.CHAT,
             enableThinking: Boolean = false,
             thinkingGuidance: Boolean = false,
-            enableMemoryAttachment: Boolean = true // 新增参数
+            enableMemoryAttachment: Boolean = true, // 新增参数
+            maxTokens: Int,
+            tokenUsageThreshold: Double
     ) {
         if (_userMessage.value.isBlank() && attachments.isEmpty()) return
         if (_isLoading.value) return
@@ -152,6 +150,8 @@ class MessageProcessingDelegate(
                     enableThinking = enableThinking,
                     thinkingGuidance = thinkingGuidance,
                     enableMemoryAttachment = enableMemoryAttachment, // Pass it here
+                    maxTokens = maxTokens,
+                    tokenUsageThreshold = tokenUsageThreshold,
                     onNonFatalError = { error ->
                         _nonFatalErrorEvent.emit(error)
                     }

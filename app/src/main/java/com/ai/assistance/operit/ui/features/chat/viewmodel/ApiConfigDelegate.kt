@@ -54,6 +54,10 @@ class ApiConfigDelegate(
     private val _contextLength = MutableStateFlow(ApiPreferences.DEFAULT_CONTEXT_LENGTH)
     val contextLength: StateFlow<Float> = _contextLength.asStateFlow()
 
+    private val _summaryTokenThreshold =
+            MutableStateFlow(ApiPreferences.DEFAULT_SUMMARY_TOKEN_THRESHOLD)
+    val summaryTokenThreshold: StateFlow<Float> = _summaryTokenThreshold.asStateFlow()
+
     // 为了兼容现有代码，添加API密钥状态流
     private val _apiKey = MutableStateFlow("")
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
@@ -128,6 +132,13 @@ class ApiConfigDelegate(
         viewModelScope.launch {
             apiPreferences.contextLengthFlow.collect { length ->
                 _contextLength.value = length
+            }
+        }
+
+        // Collect summary token threshold setting
+        viewModelScope.launch {
+            apiPreferences.summaryTokenThresholdFlow.collect { threshold ->
+                _summaryTokenThreshold.value = threshold
             }
         }
     }
@@ -229,6 +240,13 @@ class ApiConfigDelegate(
         viewModelScope.launch {
             apiPreferences.saveContextLength(length)
             _contextLength.value = length
+        }
+    }
+
+    fun updateSummaryTokenThreshold(threshold: Float) {
+        viewModelScope.launch {
+            apiPreferences.saveSummaryTokenThreshold(threshold)
+            _summaryTokenThreshold.value = threshold
         }
     }
 }

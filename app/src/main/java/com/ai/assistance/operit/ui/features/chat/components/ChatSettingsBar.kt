@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Portrait
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Psychology
@@ -74,6 +75,8 @@ fun ChatSettingsBar(
     onContextLengthChange: (Float) -> Unit,
     enableMemoryAttachment: Boolean,
         onToggleMemoryAttachment: () -> Unit,
+        summaryTokenThreshold: Float,
+        onSummaryTokenThresholdChange: (Float) -> Unit,
         onNavigateToUserPreferences: () -> Unit,
         onNavigateToModelConfig: () -> Unit,
         onNavigateToModelPrompts: () -> Unit
@@ -327,16 +330,39 @@ fun ChatSettingsBar(
                             )
 
                             // 上下文长度设置
-                            ContextLengthSettingItem(
-                                maxWindowSizeInK = maxWindowSizeInK,
-                                onContextLengthChange = onContextLengthChange,
-                                onInfoClick = {
-                                        infoPopupContent =
-                                                "上下文长度" to
-                                                        "控制模型记忆的对话长度（单位：千tokens）。较短的长度可以节省Token，但可能会忘记早期对话内容。"
-                                    showMenu = false
-                                }
-                            )
+                            // SettingSliderItem(
+                            //     label = "上下文长度",
+                            //     icon = Icons.Outlined.History,
+                            //     value = maxWindowSizeInK,
+                            //     onValueChange = onContextLengthChange,
+                            //     onInfoClick = {
+                            //         infoPopupContent =
+                            //             "上下文长度" to
+                            //                 "控制模型记忆的对话长度（单位：千tokens）。较短的长度可以节省Token，但可能会忘记早期对话内容。"
+                            //         showMenu = false
+                            //     },
+                            //     valueRange = 1f..1024f,
+                            //     steps = 1022,
+                            //     decimalFormatPattern = "#.#",
+                            //     unitText = "k"
+                            // )
+
+                            // // 摘要阈值设置
+                            // SettingSliderItem(
+                            //     label = "摘要阈值",
+                            //     icon = Icons.Outlined.Speed,
+                            //     value = summaryTokenThreshold,
+                            //     onValueChange = onSummaryTokenThresholdChange,
+                            //     onInfoClick = {
+                            //         infoPopupContent =
+                            //             "摘要阈值" to
+                            //                 "当上下文Token使用率超过此阈值时，自动触发聊天摘要。范围 0.1-0.95。"
+                            //         showMenu = false
+                            //     },
+                            //     valueRange = 0.1f..0.95f,
+                            //     steps = 84,
+                            //     decimalFormatPattern = "#.##"
+                            // )
 
                             Divider(
                                 modifier = Modifier.padding(vertical = 2.dp),
@@ -590,31 +616,37 @@ private fun SettingItem(
 }
 
 @Composable
-private fun ContextLengthSettingItem(
-    maxWindowSizeInK: Float,
-    onContextLengthChange: (Float) -> Unit,
-    onInfoClick: () -> Unit
+private fun SettingSliderItem(
+    label: String,
+    icon: ImageVector,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    onInfoClick: () -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    decimalFormatPattern: String,
+    unitText: String? = null
 ) {
-    var sliderValue by remember { mutableStateOf(maxWindowSizeInK) }
-    var textValue by remember { mutableStateOf(maxWindowSizeInK.toString()) }
+    var sliderValue by remember { mutableStateOf(value) }
+    val df = remember(decimalFormatPattern) { DecimalFormat(decimalFormatPattern) }
+    var textValue by remember { mutableStateOf(df.format(value)) }
     val focusManager = LocalFocusManager.current
-    val df = remember { DecimalFormat("#.#") }
 
-    // 当外部传入的值变化时，同步更新内部状态
-    LaunchedEffect(maxWindowSizeInK) {
-        sliderValue = maxWindowSizeInK
-        textValue = df.format(maxWindowSizeInK)
+    // When the external value changes, sync the internal state
+    LaunchedEffect(value) {
+        sliderValue = value
+        textValue = df.format(value)
     }
 
-    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Icon(
-                imageVector = Icons.Outlined.History,
-                contentDescription = "上下文长度",
+                imageVector = icon,
+                contentDescription = label,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.size(16.dp)
             )
-            // 详情按钮（左侧）
+            // Info button
             IconButton(onClick = onInfoClick, modifier = Modifier.size(24.dp)) {
                 Icon(
                     imageVector = Icons.Outlined.Info,
@@ -624,7 +656,7 @@ private fun ContextLengthSettingItem(
                 )
             }
             Text(
-                text = "上下文长度",
+                text = label,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Normal,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -635,50 +667,50 @@ private fun ContextLengthSettingItem(
                 value = textValue,
                 onValueChange = { newText ->
                     textValue = newText
-                        newText.toFloatOrNull()?.let { sliderValue = it.coerceIn(1f, 1024f) }
+                    newText.toFloatOrNull()?.let {
+                        sliderValue = it.coerceIn(valueRange)
+                    }
                 },
-                    modifier =
-                            Modifier.width(50.dp)
+                modifier = Modifier
+                    .width(50.dp)
                     .background(
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(
-                                                    alpha = 0.5f
-                                            ),
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                         RoundedCornerShape(4.dp)
                     )
                     .padding(horizontal = 4.dp, vertical = 2.dp),
-                    textStyle =
-                            TextStyle(
+                textStyle = TextStyle(
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 ),
-                    keyboardOptions =
-                            KeyboardOptions(
+                keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
                     imeAction = ImeAction.Done
                 ),
-                    keyboardActions =
-                            KeyboardActions(
+                keyboardActions = KeyboardActions(
                     onDone = {
-                                        val finalValue =
-                                                textValue.toFloatOrNull()?.coerceIn(1f, 1024f)
-                                                        ?: sliderValue
-                        onContextLengthChange(finalValue)
-                        textValue = df.format(finalValue) // 格式化并同步显示
+                        val finalValue = textValue.toFloatOrNull()?.coerceIn(valueRange) ?: sliderValue
+                        onValueChange(finalValue)
+                        textValue = df.format(finalValue)
                         focusManager.clearFocus()
                     }
                 ),
                 singleLine = true
             )
 
-            Text(
-                text = "k",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 2.dp, end = 4.dp)
-            )
+            // Here is the fix for alignment
+            Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.CenterStart) {
+                if (unitText != null) {
+                    Text(
+                        text = unitText,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 2.dp)
+                    )
+                }
+            }
         }
 
         Slider(
@@ -687,9 +719,9 @@ private fun ContextLengthSettingItem(
                 sliderValue = it
                 textValue = df.format(it)
             },
-                onValueChangeFinished = { onContextLengthChange(sliderValue) },
-            valueRange = 1f..1024f,
-            steps = 1022,
+            onValueChangeFinished = { onValueChange(sliderValue) },
+            valueRange = valueRange,
+            steps = steps,
             modifier = Modifier.fillMaxWidth().height(24.dp)
         )
     }

@@ -405,6 +405,8 @@ class EnhancedAIService private constructor(private val context: Context) {
             enableThinking: Boolean = false,
             thinkingGuidance: Boolean = false,
             enableMemoryAttachment: Boolean = true,
+            maxTokens: Int,
+            tokenUsageThreshold: Double,
             onNonFatalError: suspend (error: String) -> Unit = {}
     ): Stream<String> {
         Log.d(
@@ -570,7 +572,7 @@ class EnhancedAIService private constructor(private val context: Context) {
             } finally {
                 // 确保流处理完成后调用
                 val collector = this
-                withContext(Dispatchers.IO) { processStreamCompletion(functionType, collector, enableThinking, enableMemoryAttachment, onNonFatalError) }
+                withContext(Dispatchers.IO) { processStreamCompletion(functionType, collector, enableThinking, enableMemoryAttachment, onNonFatalError, maxTokens, tokenUsageThreshold) }
             }
         }
     }
@@ -673,7 +675,9 @@ class EnhancedAIService private constructor(private val context: Context) {
             collector: StreamCollector<String>,
             enableThinking: Boolean = false,
             enableMemoryAttachment: Boolean = true,
-            onNonFatalError: suspend (error: String) -> Unit
+            onNonFatalError: suspend (error: String) -> Unit,
+            maxTokens: Int,
+            tokenUsageThreshold: Double
     ) {
         try {
             val startTime = System.currentTimeMillis()
@@ -766,7 +770,9 @@ class EnhancedAIService private constructor(private val context: Context) {
                         collector,
                         enableThinking,
                         enableMemoryAttachment,
-                        onNonFatalError
+                        onNonFatalError,
+                        maxTokens,
+                        tokenUsageThreshold
                 )
                 return
             }
@@ -849,7 +855,9 @@ class EnhancedAIService private constructor(private val context: Context) {
             collector: StreamCollector<String>,
             enableThinking: Boolean = false,
             enableMemoryAttachment: Boolean = true,
-            onNonFatalError: suspend (error: String) -> Unit
+            onNonFatalError: suspend (error: String) -> Unit,
+            maxTokens: Int,
+            tokenUsageThreshold: Double
     ) {
         val startTime = System.currentTimeMillis()
         // Only process the first tool invocation, show warning if there are multiple
@@ -933,7 +941,9 @@ class EnhancedAIService private constructor(private val context: Context) {
                                 collector,
                                 enableThinking,
                                 enableMemoryAttachment,
-                                onNonFatalError
+                                onNonFatalError,
+                                maxTokens,
+                                tokenUsageThreshold
                         )
                         return@launch
                     } else {
@@ -975,7 +985,9 @@ class EnhancedAIService private constructor(private val context: Context) {
                                         collector,
                                         enableThinking,
                                         enableMemoryAttachment,
-                                        onNonFatalError
+                                        onNonFatalError,
+                                        maxTokens,
+                                        tokenUsageThreshold
                                 )
                             }
                             return@launch
@@ -1027,7 +1039,9 @@ class EnhancedAIService private constructor(private val context: Context) {
                                     collector,
                                     enableThinking,
                                     enableMemoryAttachment,
-                                    onNonFatalError
+                                    onNonFatalError,
+                                    maxTokens,
+                                    tokenUsageThreshold
                             )
                         }
                     }
@@ -1053,7 +1067,9 @@ class EnhancedAIService private constructor(private val context: Context) {
             collector: StreamCollector<String>,
             enableThinking: Boolean = false,
             enableMemoryAttachment: Boolean = true,
-            onNonFatalError: suspend (error: String) -> Unit
+            onNonFatalError: suspend (error: String) -> Unit,
+            maxTokens: Int,
+            tokenUsageThreshold: Double
     ) {
         val startTime = System.currentTimeMillis()
         Log.d(TAG, "开始处理工具结果: ${result.toolName}, 成功: ${result.success}")
@@ -1097,6 +1113,29 @@ class EnhancedAIService private constructor(private val context: Context) {
 
         // 获取对应功能类型的AIService实例
         val serviceForFunction = getAIServiceForFunction(functionType)
+
+        // After a tool call, check if token usage exceeds the threshold
+        if (maxTokens > 0) {
+            // 精确计算下一次调用（空消息，只依赖历史）将产生的token
+            val currentTokens = serviceForFunction.calculateInputTokens("", currentChatHistory)
+            val usageRatio = currentTokens.toDouble() / maxTokens.toDouble()
+
+            if (usageRatio >= tokenUsageThreshold) {
+                Log.w(TAG, "Token usage ($usageRatio) exceeds threshold ($tokenUsageThreshold) after tool call. Terminating turn.")
+
+                val warningMessage = ConversationMarkupManager.createWarningStatus("已达到Token限制。为继续，请开启新话题或总结对话。")
+                collector.emit(warningMessage)
+                roundManager.appendContent(warningMessage)
+                conversationMutex.withLock { conversationHistory.add(Pair("assistant", warningMessage)) }
+
+                isConversationActive.set(false)
+                withContext(Dispatchers.Main) {
+                    _inputProcessingState.value = InputProcessingState.Completed
+                }
+                stopAiService()
+                return // Stop further processing
+            }
+        }
 
         // 清空之前的单次请求token计数
         _perRequestTokenCounts.value = null
@@ -1163,7 +1202,7 @@ class EnhancedAIService private constructor(private val context: Context) {
                 Log.d(TAG, "工具结果AI处理完成，收到 $totalChars 字符，耗时: ${processingTime}ms")
 
                 // 流处理完成，处理完成逻辑
-                processStreamCompletion(functionType, collector, enableThinking, enableMemoryAttachment, onNonFatalError)
+                processStreamCompletion(functionType, collector, enableThinking, enableMemoryAttachment, onNonFatalError, maxTokens, tokenUsageThreshold)
             } catch (e: Exception) {
                 Log.e(TAG, "处理工具执行结果时出错", e)
                 withContext(Dispatchers.Main) {

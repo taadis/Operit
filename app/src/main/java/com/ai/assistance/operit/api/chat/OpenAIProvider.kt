@@ -165,44 +165,54 @@ open class OpenAIProvider(
                 Log.d("AIService", "添加参数 ${param.apiName} = ${param.currentValue}")
             }
         }
+        
+        // 使用新的核心逻辑构建消息并获取token计数
+        val (messagesArray, tokenCount) = buildMessagesAndCountTokens(message, chatHistory)
+        _inputTokenCount = tokenCount // 更新内部token计数器
+        jsonObject.put("messages", messagesArray)
 
-        // 创建消息数组，包含聊天历史
+        // 使用分块日志函数记录完整的请求体
+        logLargeString("AIService", jsonObject.toString(4), "请求体: ")
+        return jsonObject.toString()
+    }
+
+    /**
+     * 构建消息列表并计算token（核心逻辑）
+     * @param message 用户消息
+     * @param chatHistory 聊天历史
+     * @return Pair(消息列表JSONArray, 输入token计数)
+     */
+    protected fun buildMessagesAndCountTokens(
+            message: String,
+            chatHistory: List<Pair<String, String>>
+    ): Pair<JSONArray, Int> {
         val messagesArray = JSONArray()
+        var tokenCount = 0
 
         // 添加聊天历史
         if (chatHistory.isNotEmpty()) {
-
-            // 添加历史消息 - 使用工具函数统一转换角色格式，并确保没有连续的相同角色
             val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
-
-            // 防止连续相同角色消息
             val filteredHistory = mutableListOf<Pair<String, String>>()
             var lastRole: String? = null
 
             for ((role, content) in standardizedHistory) {
-                // 如果当前消息角色与上一个相同，跳过（除了system消息）
                 if (role == lastRole && role != "system") {
-                    Log.d("AIService", "跳过连续相同角色的消息: $role")
                     continue
                 }
-
                 filteredHistory.add(Pair(role, content))
                 lastRole = role
             }
 
-            // 将过滤后的历史添加到消息数组
             for ((role, content) in filteredHistory) {
                 val historyMessage = JSONObject()
                 historyMessage.put("role", role)
                 historyMessage.put("content", content)
                 messagesArray.put(historyMessage)
-
-                // 计算输入token
-                _inputTokenCount += ChatUtils.estimateTokenCount(content)
+                tokenCount += ChatUtils.estimateTokenCount(content)
             }
         }
 
-        // 添加当前消息，确保与上一条消息角色不同
+        // 添加当前消息
         val lastMessageRole =
                 if (messagesArray.length() > 0) {
                     messagesArray.getJSONObject(messagesArray.length() - 1).getString("role")
@@ -213,27 +223,25 @@ open class OpenAIProvider(
             messageObject.put("role", "user")
             messageObject.put("content", message)
             messagesArray.put(messageObject)
-
-            // 计算当前消息的token
-            _inputTokenCount += ChatUtils.estimateTokenCount(message)
+            tokenCount += ChatUtils.estimateTokenCount(message)
         } else {
-            // 如果上一条消息也是用户，将当前消息与上一条合并
-            Log.d("AIService", "合并连续的用户消息")
             val lastMessage = messagesArray.getJSONObject(messagesArray.length() - 1)
             if (lastMessage.getString("content") != message) {
                 val combinedContent = lastMessage.getString("content") + "\n" + message
                 lastMessage.put("content", combinedContent)
-
-                // 重新计算合并后消息的token
-                _inputTokenCount += ChatUtils.estimateTokenCount(message)
+                tokenCount += ChatUtils.estimateTokenCount(message)
             }
         }
+        return Pair(messagesArray, tokenCount)
+    }
 
-        jsonObject.put("messages", messagesArray)
-
-        // 使用分块日志函数记录完整的请求体
-        logLargeString("AIService", jsonObject.toString(4), "请求体: ")
-        return jsonObject.toString()
+    override suspend fun calculateInputTokens(
+            message: String,
+            chatHistory: List<Pair<String, String>>
+    ): Int {
+        // 调用核心逻辑，只返回token计数
+        val (_, tokenCount) = buildMessagesAndCountTokens(message, chatHistory)
+        return tokenCount
     }
 
     // 创建请求

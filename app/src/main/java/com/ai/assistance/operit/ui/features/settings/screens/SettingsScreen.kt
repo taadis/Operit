@@ -13,6 +13,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import java.text.DecimalFormat
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
@@ -74,6 +86,18 @@ fun SettingsScreen(
                         )
                         .value
 
+        val summaryTokenThreshold =
+                apiPreferences.summaryTokenThresholdFlow.collectAsState(
+                                initial = ApiPreferences.DEFAULT_SUMMARY_TOKEN_THRESHOLD
+                        )
+                        .value
+
+        val contextLength =
+                apiPreferences.contextLengthFlow.collectAsState(
+                                initial = ApiPreferences.DEFAULT_CONTEXT_LENGTH
+                        )
+                        .value
+
         // Mutable state for editing
         var apiKeyInput by remember { mutableStateOf(apiKey) }
         var apiEndpointInput by remember { mutableStateOf(apiEndpoint) }
@@ -81,6 +105,8 @@ fun SettingsScreen(
 
         var showFpsCounterInput by remember { mutableStateOf(showFpsCounter) }
         var keepScreenOnInput by remember { mutableStateOf(keepScreenOn) }
+        var summaryTokenThresholdInput by remember { mutableStateOf(summaryTokenThreshold) }
+        var contextLengthInput by remember { mutableStateOf(contextLength) }
         var showSaveSuccessMessage by remember { mutableStateOf(false) }
 
         // Add state for endpoint warning
@@ -107,13 +133,17 @@ fun SettingsScreen(
                 apiEndpoint,
                 modelName,
                 showFpsCounter,
-                keepScreenOn
+                keepScreenOn,
+                summaryTokenThreshold,
+                contextLength
         ) {
                 apiKeyInput = apiKey
                 apiEndpointInput = apiEndpoint
                 modelNameInput = modelName
                 showFpsCounterInput = showFpsCounter
                 keepScreenOnInput = keepScreenOn
+                summaryTokenThresholdInput = summaryTokenThreshold
+                contextLengthInput = contextLength
         }
 
         Column(
@@ -257,7 +287,40 @@ fun SettingsScreen(
                                         )
                                 }
 
+                                // 上下文长度滑块
+                                SettingsSlider(
+                                    title = "上下文长度",
+                                    description = "控制模型记忆的对话长度（单位：千tokens）。",
+                                    value = contextLengthInput,
+                                    onValueChange = {
+                                        contextLengthInput = it
+                                        scope.launch {
+                                            apiPreferences.saveContextLength(it)
+                                            showSaveSuccessMessage = true
+                                        }
+                                    },
+                                    valueRange = 1f..1024f,
+                                    steps = 1022,
+                                    decimalFormatPattern = "#.#",
+                                    unitText = "k"
+                                )
 
+                                // 摘要Token阈值滑块
+                                SettingsSlider(
+                                        title = "摘要Token阈值",
+                                        description = "当上下文Token使用率超过此阈值时，自动触发聊天摘要。范围 0.1-0.95。",
+                                        value = summaryTokenThresholdInput,
+                                        onValueChange = {
+                                                summaryTokenThresholdInput = it
+                                                scope.launch {
+                                                        apiPreferences.saveSummaryTokenThreshold(it)
+                                                        showSaveSuccessMessage = true
+                                                }
+                                        },
+                                        valueRange = 0.1f..0.95f,
+                                        steps = 84,
+                                        decimalFormatPattern = "#.##"
+                                )
 
                                 // 屏幕常亮开关
                                 SettingsToggle(
@@ -600,6 +663,101 @@ private fun SettingsToggle(
                         modifier = Modifier.padding(top = 4.dp)
                 )
         }
+}
+
+@Composable
+private fun SettingsSlider(
+    title: String,
+    description: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    decimalFormatPattern: String,
+    unitText: String? = null
+) {
+    val focusManager = LocalFocusManager.current
+    val df = remember(decimalFormatPattern) { DecimalFormat(decimalFormatPattern) }
+
+    var sliderValue by remember(value) { mutableStateOf(value) }
+    var textValue by remember(value) { mutableStateOf(df.format(value)) }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+        Text(text = title, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Slider(
+                value = sliderValue,
+                onValueChange = {
+                    sliderValue = it
+                    textValue = df.format(it)
+                },
+                onValueChangeFinished = {
+                    onValueChange(sliderValue)
+                },
+                valueRange = valueRange,
+                steps = steps,
+                modifier = Modifier.weight(1f)
+            )
+
+            // Spacer to align the text input
+            Spacer(modifier = Modifier.width(8.dp))
+
+            BasicTextField(
+                value = textValue,
+                onValueChange = { newText ->
+                    textValue = newText
+                    newText.toFloatOrNull()?.let {
+                        sliderValue = it.coerceIn(valueRange)
+                    }
+                },
+                modifier = Modifier
+                    .width(60.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                textStyle = TextStyle(
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                ),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        val finalValue = textValue.toFloatOrNull()?.coerceIn(valueRange) ?: sliderValue
+                        onValueChange(finalValue)
+                        textValue = df.format(finalValue)
+                        focusManager.clearFocus()
+                    }
+                ),
+                singleLine = true
+            )
+
+            // Unit text (like "k") - wrapped in a Box to ensure consistent alignment
+            Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.CenterStart) {
+                if (unitText != null) {
+                    Text(
+                        text = unitText,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

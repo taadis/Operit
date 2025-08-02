@@ -49,4 +49,16 @@ interface AIService {
      * @return 成功时返回成功信息，失败时返回包含错误的Result
      */
     suspend fun testConnection(): Result<String>
+
+    /**
+     * 精确计算下一次请求的输入Token数量
+     *
+     * @param message 用户消息内容
+     * @param chatHistory 聊天历史记录
+     * @return 估算的输入token总数
+     */
+    suspend fun calculateInputTokens(
+            message: String,
+            chatHistory: List<Pair<String, String>>
+    ): Int
 }

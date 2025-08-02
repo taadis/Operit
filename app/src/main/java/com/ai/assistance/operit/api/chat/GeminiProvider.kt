@@ -71,6 +71,71 @@ class GeminiProvider(
         _outputTokenCount = 0
     }
 
+    override suspend fun calculateInputTokens(
+            message: String,
+            chatHistory: List<Pair<String, String>>
+    ): Int {
+        val (_, tokenCount) = buildContentsAndCountTokens(message, chatHistory)
+        return tokenCount
+    }
+
+    private fun buildContentsAndCountTokens(
+            message: String,
+            chatHistory: List<Pair<String, String>>
+    ): Pair<Pair<JSONArray, JSONObject?>, Int> {
+        var tokenCount = 0
+        val contentsArray = JSONArray()
+        var systemInstruction: JSONObject? = null
+
+        val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
+
+        // Find and process system message first
+        val systemMessage = standardizedHistory.find { it.first == "system" }
+        if (systemMessage != null) {
+            val systemContent = systemMessage.second
+            logDebug("发现系统消息: ${systemContent.take(50)}...")
+            tokenCount += ChatUtils.estimateTokenCount(systemContent) + 20 // Extra for formatting
+
+            systemInstruction = JSONObject().apply {
+                put("parts", JSONArray().apply {
+                    put(JSONObject().apply { put("text", systemContent) })
+                })
+            }
+        }
+
+        // Process the rest of the history
+        var lastRole: String? = null
+        for ((role, content) in standardizedHistory) {
+            if (role == "system") continue // Skip system message as it's handled
+            if (role == lastRole) {
+                logDebug("跳过连续相同角色消息: $role")
+                continue
+            }
+            lastRole = role
+
+            val contentObject = JSONObject().apply {
+                put("role", if (role == "assistant") "model" else role)
+                put("parts", JSONArray().apply {
+                    put(JSONObject().apply { put("text", content) })
+                })
+            }
+            contentsArray.put(contentObject)
+            tokenCount += ChatUtils.estimateTokenCount(content)
+        }
+
+        // Add current user message
+        val userContentObject = JSONObject().apply {
+            put("role", "user")
+            put("parts", JSONArray().apply {
+                put(JSONObject().apply { put("text", message) })
+            })
+        }
+        contentsArray.put(userContentObject)
+        tokenCount += ChatUtils.estimateTokenCount(message)
+
+        return Pair(Pair(contentsArray, systemInstruction), tokenCount)
+    }
+
     // 工具函数：分块打印大型文本日志
     private fun logLargeString(tag: String, message: String, prefix: String = "") {
         // 设置单次日志输出的最大长度（Android日志上限约为4000字符）
@@ -263,100 +328,15 @@ class GeminiProvider(
             modelParameters: List<ModelParameter<*>>,
             enableThinking: Boolean
     ): RequestBody {
-        val requestId = System.currentTimeMillis().toString()
         val json = JSONObject()
-        val contentsArray = JSONArray()
 
-        logDebug("开始创建请求体，历史消息: ${chatHistory.size}条")
+        val (contentsResult, tokenCount) = buildContentsAndCountTokens(message, chatHistory)
+        val (contentsArray, systemInstruction) = contentsResult
+        _inputTokenCount = tokenCount
 
-        // 标准化历史消息
-        val standardizedHistory = ChatUtils.mapChatHistoryToStandardRoles(chatHistory)
-
-        // 调试输出所有历史消息
-        for ((index, pair) in standardizedHistory.withIndex()) {
-            logDebug("历史消息[$index]: role=${pair.first}, content长度=${pair.second.length}")
+        if (systemInstruction != null) {
+            json.put("systemInstruction", systemInstruction)
         }
-
-        // 处理历史消息
-        if (standardizedHistory.isNotEmpty()) {
-            var lastRole: String? = null
-            var hasSystemMessage = false
-            var systemContent: String? = null
-
-            // 首先检查是否有系统消息
-            for ((index, pair) in standardizedHistory.withIndex()) {
-                if (pair.first == "system") {
-                    hasSystemMessage = true
-                    systemContent = pair.second
-                    logDebug("发现系统消息: ${systemContent.take(50)}...")
-
-                    // 估算token
-                    val tokens = ChatUtils.estimateTokenCount(systemContent) + 20 // 增加一些token计数以包含额外的格式标记
-                    _inputTokenCount += tokens
-                    break // 只处理第一条系统消息
-                }
-            }
-
-            // 如果有系统消息，使用专用的system_instruction字段
-            if (hasSystemMessage && systemContent != null) {
-                val systemInstruction = JSONObject()
-                val systemPartsArray = JSONArray()
-                val systemTextPart = JSONObject()
-
-                systemTextPart.put("text", systemContent)
-                systemPartsArray.put(systemTextPart)
-
-                systemInstruction.put("parts", systemPartsArray)
-                json.put("systemInstruction", systemInstruction)
-            }
-
-            // 处理其余消息
-            for ((role, content) in standardizedHistory) {
-                // 跳过已处理的系统消息
-                if (role == "system") {
-                    continue
-                }
-
-                // 如果与上一条消息角色相同，跳过
-                if (role == lastRole) {
-                    logDebug("跳过连续相同角色消息: $role")
-                    continue
-                }
-
-                lastRole = role
-
-                val contentObject = JSONObject()
-                val partsArray = JSONArray()
-                val textPart = JSONObject()
-                textPart.put("text", content)
-                partsArray.put(textPart)
-
-                contentObject.put("role", if (role == "assistant") "model" else role)
-                contentObject.put("parts", partsArray)
-                contentsArray.put(contentObject)
-
-                // 估算token
-                val tokens = ChatUtils.estimateTokenCount(content)
-                _inputTokenCount += tokens
-            }
-        }
-
-        // 添加当前用户消息
-        val userContentObject = JSONObject()
-        val userPartsArray = JSONArray()
-        val userTextPart = JSONObject()
-        userTextPart.put("text", message)
-        userPartsArray.put(userTextPart)
-
-        userContentObject.put("role", "user")
-        userContentObject.put("parts", userPartsArray)
-        contentsArray.put(userContentObject)
-
-        // 估算token
-        val tokens = ChatUtils.estimateTokenCount(message)
-        _inputTokenCount += tokens
-
-        // 添加contents到请求体
         json.put("contents", contentsArray)
 
         // 添加生成配置

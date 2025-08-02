@@ -115,6 +115,8 @@ object AIMessageManager {
         enableThinking: Boolean,
         thinkingGuidance: Boolean,
         enableMemoryAttachment: Boolean, // Add this parameter
+        maxTokens: Int,
+        tokenUsageThreshold: Double,
         onNonFatalError: suspend (error: String) -> Unit
     ): SharedStream<String> {
         val memory = getMemoryFromMessages(chatHistory)
@@ -128,6 +130,8 @@ object AIMessageManager {
                 enableThinking = enableThinking,
                 thinkingGuidance = thinkingGuidance,
                 enableMemoryAttachment = enableMemoryAttachment, // Pass it here
+                maxTokens = maxTokens,
+                tokenUsageThreshold = tokenUsageThreshold,
                 onNonFatalError = onNonFatalError
             ).share(scope) // 使用.share()将其转换为共享流
         }
@@ -200,10 +204,9 @@ object AIMessageManager {
     fun shouldGenerateSummary(
         messages: List<ChatMessage>,
         currentTokens: Int,
-        maxTokens: Int
+        maxTokens: Int,
+        tokenUsageThreshold: Double
     ): Boolean {
-        val tokenUsageThreshold = 0.75
-
         if (maxTokens > 0) {
             val usageRatio = currentTokens.toDouble() / maxTokens.toDouble()
             if (usageRatio >= tokenUsageThreshold) {

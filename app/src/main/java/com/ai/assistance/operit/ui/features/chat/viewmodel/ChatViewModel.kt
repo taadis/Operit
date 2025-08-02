@@ -166,6 +166,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
     val enableThinkingGuidance: StateFlow<Boolean> by lazy { apiConfigDelegate.enableThinkingGuidance }
     val enableMemoryAttachment: StateFlow<Boolean> by lazy { apiConfigDelegate.enableMemoryAttachment }
 
+    val summaryTokenThreshold: StateFlow<Float> by lazy { apiConfigDelegate.summaryTokenThreshold }
+
     // 上下文长度
     val maxWindowSizeInK: StateFlow<Float> by lazy { apiConfigDelegate.contextLength }
 
@@ -486,6 +488,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         apiConfigDelegate.updateContextLength(length)
     }
 
+    fun updateSummaryTokenThreshold(threshold: Float) {
+        apiConfigDelegate.updateSummaryTokenThreshold(threshold)
+    }
+
     // 聊天历史相关方法
     fun createNewChat() {
         chatHistoryDelegate.createNewChat()
@@ -707,7 +713,9 @@ class ChatViewModel(private val context: Context) : ViewModel() {
                 promptFunctionType = promptFunctionType,
                 enableThinking = enableThinkingMode.value, // 传递思考模式的状态
                 thinkingGuidance = enableThinkingGuidance.value, // 传递思考引导的状态
-                enableMemoryAttachment = enableMemoryAttachment.value // 传递记忆附着的状态
+                enableMemoryAttachment = enableMemoryAttachment.value, // 传递记忆附着的状态
+                maxTokens = (maxWindowSizeInK.value * 1024).toInt(),
+                tokenUsageThreshold = summaryTokenThreshold.value.toDouble()
         )
 
         // 在sendMessageInternal中，添加对nonFatalErrorEvent的收集
@@ -725,7 +733,8 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         if (AIMessageManager.shouldGenerateSummary(
                 messages = currentMessages,
                 currentTokens = currentTokens,
-                maxTokens = maxTokens
+                maxTokens = maxTokens,
+                tokenUsageThreshold = summaryTokenThreshold.value.toDouble()
             )
         ) {
             // 1. 在调用挂起函数之前，根据当前的消息快照预先计算好插入位置
