@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.ai.assistance.operit.data.model.ApiProviderType
+import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.model.ModelParameter
 import com.ai.assistance.operit.data.model.ParameterCategory
 import com.ai.assistance.operit.data.model.ParameterValueType
@@ -34,9 +35,13 @@ class ApiPreferences(private val context: Context) {
         val MODEL_NAME = stringPreferencesKey("model_name")
         val API_PROVIDER_TYPE = stringPreferencesKey("api_provider_type")
 
-        val PREFERENCE_ANALYSIS_INPUT_TOKENS = intPreferencesKey("preference_analysis_input_tokens")
-        val PREFERENCE_ANALYSIS_OUTPUT_TOKENS =
-                intPreferencesKey("preference_analysis_output_tokens")
+        // 动态生成FunctionType的Token键
+        fun getTokenInputKey(functionType: FunctionType) =
+                intPreferencesKey("token_input_${functionType.name}")
+
+        fun getTokenOutputKey(functionType: FunctionType) =
+                intPreferencesKey("token_output_${functionType.name}")
+
         val SHOW_FPS_COUNTER = booleanPreferencesKey("show_fps_counter")
         val ENABLE_AI_PLANNING = booleanPreferencesKey("enable_ai_planning")
         val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
@@ -250,17 +255,14 @@ class ApiPreferences(private val context: Context) {
 
 
 
-    // 获取偏好分析输入token计数
-    val preferenceAnalysisInputTokensFlow: Flow<Int> =
-            context.apiDataStore.data.map { preferences ->
-                preferences[PREFERENCE_ANALYSIS_INPUT_TOKENS] ?: 0
-            }
-
-    // 获取偏好分析输出token计数
-    val preferenceAnalysisOutputTokensFlow: Flow<Int> =
-            context.apiDataStore.data.map { preferences ->
-                preferences[PREFERENCE_ANALYSIS_OUTPUT_TOKENS] ?: 0
-            }
+    // 获取指定功能类型的token计数
+    fun getTokensForFunctionFlow(functionType: FunctionType): Flow<Pair<Int, Int>> {
+        return context.apiDataStore.data.map { preferences ->
+            val inputTokens = preferences[getTokenInputKey(functionType)] ?: 0
+            val outputTokens = preferences[getTokenOutputKey(functionType)] ?: 0
+            Pair(inputTokens, outputTokens)
+        }
+    }
 
     // Get FPS Counter Display setting as Flow
     val showFpsCounterFlow: Flow<Boolean> =
@@ -709,15 +711,26 @@ class ApiPreferences(private val context: Context) {
         return preferences[CUSTOM_HEADERS] ?: DEFAULT_CUSTOM_HEADERS
     }
 
-    // 更新偏好分析token计数
-    suspend fun updatePreferenceAnalysisTokens(inputTokens: Int, outputTokens: Int) {
+    /**
+     * 更新指定功能类型的token计数
+     * @param functionType 要更新的功能类型
+     * @param inputTokens 新增的输入token
+     * @param outputTokens 新增的输出token
+     */
+    suspend fun updateTokensForFunction(
+            functionType: FunctionType,
+            inputTokens: Int,
+            outputTokens: Int
+    ) {
         context.apiDataStore.edit { preferences ->
-            // 累加而不是覆盖
-            val currentInputTokens = preferences[PREFERENCE_ANALYSIS_INPUT_TOKENS] ?: 0
-            val currentOutputTokens = preferences[PREFERENCE_ANALYSIS_OUTPUT_TOKENS] ?: 0
+            val inputKey = getTokenInputKey(functionType)
+            val outputKey = getTokenOutputKey(functionType)
 
-            preferences[PREFERENCE_ANALYSIS_INPUT_TOKENS] = currentInputTokens + inputTokens
-            preferences[PREFERENCE_ANALYSIS_OUTPUT_TOKENS] = currentOutputTokens + outputTokens
+            val currentInputTokens = preferences[inputKey] ?: 0
+            val currentOutputTokens = preferences[outputKey] ?: 0
+
+            preferences[inputKey] = currentInputTokens + inputTokens
+            preferences[outputKey] = currentOutputTokens + outputTokens
         }
     }
 
@@ -737,11 +750,13 @@ class ApiPreferences(private val context: Context) {
         }
     }
 
-    // 重置偏好分析token计数
-    suspend fun resetPreferenceAnalysisTokens() {
+    // 重置所有功能类型的token计数
+    suspend fun resetAllFunctionTokenCounts() {
         context.apiDataStore.edit { preferences ->
-            preferences[PREFERENCE_ANALYSIS_INPUT_TOKENS] = 0
-            preferences[PREFERENCE_ANALYSIS_OUTPUT_TOKENS] = 0
+            for (functionType in FunctionType.values()) {
+                preferences[getTokenInputKey(functionType)] = 0
+                preferences[getTokenOutputKey(functionType)] = 0
+            }
         }
     }
 

@@ -24,8 +24,14 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.text.style.TextOverflow
 import java.text.DecimalFormat
 import com.ai.assistance.operit.R
+import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import kotlinx.coroutines.launch
@@ -63,83 +69,20 @@ fun SettingsScreen(
         }
 
         // Collect API settings as state
-        val apiKey = apiPreferences.apiKeyFlow.collectAsState(initial = "").value
-        val apiEndpoint =
-                apiPreferences.apiEndpointFlow.collectAsState(
-                                initial = ApiPreferences.DEFAULT_API_ENDPOINT
-                        )
-                        .value
-        val modelName =
-                apiPreferences.modelNameFlow.collectAsState(
-                                initial = ApiPreferences.DEFAULT_MODEL_NAME
-                        )
-                        .value
-
-        val showFpsCounter =
-                apiPreferences.showFpsCounterFlow.collectAsState(
-                                initial = ApiPreferences.DEFAULT_SHOW_FPS_COUNTER
-                        )
-                        .value
-        val keepScreenOn =
-                apiPreferences.keepScreenOnFlow.collectAsState(
-                                initial = ApiPreferences.DEFAULT_KEEP_SCREEN_ON
-                        )
-                        .value
-
-        val summaryTokenThreshold =
-                apiPreferences.summaryTokenThresholdFlow.collectAsState(
-                                initial = ApiPreferences.DEFAULT_SUMMARY_TOKEN_THRESHOLD
-                        )
-                        .value
-
-        val contextLength =
-                apiPreferences.contextLengthFlow.collectAsState(
-                                initial = ApiPreferences.DEFAULT_CONTEXT_LENGTH
-                        )
-                        .value
+        val showFpsCounter = apiPreferences.showFpsCounterFlow.collectAsState(initial = ApiPreferences.DEFAULT_SHOW_FPS_COUNTER).value
+        val keepScreenOn = apiPreferences.keepScreenOnFlow.collectAsState(initial = ApiPreferences.DEFAULT_KEEP_SCREEN_ON).value
+        val summaryTokenThreshold = apiPreferences.summaryTokenThresholdFlow.collectAsState(initial = ApiPreferences.DEFAULT_SUMMARY_TOKEN_THRESHOLD).value
+        val contextLength = apiPreferences.contextLengthFlow.collectAsState(initial = ApiPreferences.DEFAULT_CONTEXT_LENGTH).value
 
         // Mutable state for editing
-        var apiKeyInput by remember { mutableStateOf(apiKey) }
-        var apiEndpointInput by remember { mutableStateOf(apiEndpoint) }
-        var modelNameInput by remember { mutableStateOf(modelName) }
-
         var showFpsCounterInput by remember { mutableStateOf(showFpsCounter) }
         var keepScreenOnInput by remember { mutableStateOf(keepScreenOn) }
         var summaryTokenThresholdInput by remember { mutableStateOf(summaryTokenThreshold) }
         var contextLengthInput by remember { mutableStateOf(contextLength) }
         var showSaveSuccessMessage by remember { mutableStateOf(false) }
 
-        // Add state for endpoint warning
-        var endpointWarningMessage by remember { mutableStateOf<String?>(null) }
-        var showEndpointWarning by remember { mutableStateOf(false) }
-
-        // Add state to check if using default API key
-        val isUsingDefaultApiKey = apiKeyInput == ApiPreferences.DEFAULT_API_KEY
-        var showModelRestrictionInfo by remember { mutableStateOf(isUsingDefaultApiKey) }
-
-        // Force deepseek-chat model when using default API key
-        LaunchedEffect(apiKeyInput) {
-                if (apiKeyInput == ApiPreferences.DEFAULT_API_KEY) {
-                        modelNameInput = ApiPreferences.DEFAULT_MODEL_NAME
-                        showModelRestrictionInfo = true
-                } else {
-                        showModelRestrictionInfo = false
-                }
-        }
-
         // Update local state when preferences change
-        LaunchedEffect(
-                apiKey,
-                apiEndpoint,
-                modelName,
-                showFpsCounter,
-                keepScreenOn,
-                summaryTokenThreshold,
-                contextLength
-        ) {
-                apiKeyInput = apiKey
-                apiEndpointInput = apiEndpoint
-                modelNameInput = modelName
+        LaunchedEffect(showFpsCounter, keepScreenOn, summaryTokenThreshold, contextLength) {
                 showFpsCounterInput = showFpsCounter
                 keepScreenOnInput = keepScreenOn
                 summaryTokenThresholdInput = summaryTokenThreshold
@@ -147,188 +90,142 @@ fun SettingsScreen(
         }
 
         Column(
-                modifier =
-                        Modifier.fillMaxSize()
-                                .padding(16.dp)
-                                .verticalScroll(scrollState) // 使用保存的滚动状态
+                modifier = Modifier.fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .verticalScroll(scrollState)
         ) {
-                // ======= SECTION 1: PERSONALIZATION =======
-                SettingsSectionTitle(
+                // ======= 个性化配置 =======
+                SettingsSection(
                         title = stringResource(id = R.string.settings_section_personalization),
                         icon = Icons.Default.Person
-                )
+                ) {
+                        CompactSettingsItem(
+                                title = stringResource(id = R.string.settings_user_preferences),
+                                subtitle = "个人偏好和行为设置",
+                                icon = Icons.Default.Face,
+                                onClick = onNavigateToUserPreferences
+                        )
+                        
+                        CompactSettingsItem(
+                                title = stringResource(R.string.language_settings),
+                                subtitle = "界面语言切换",
+                                icon = Icons.Default.Language,
+                                onClick = navigateToLanguageSettings
+                        )
+                        
+                        CompactSettingsItem(
+                                title = stringResource(id = R.string.settings_theme_appearance),
+                                subtitle = "主题和外观定制",
+                                icon = Icons.Default.Palette,
+                                onClick = navigateToThemeSettings
+                        )
+                }
 
-                // 用户偏好设置
-                SettingsCard(
-                        title = stringResource(id = R.string.settings_user_preferences),
-                        description = stringResource(id = R.string.settings_user_preferences_desc),
-                        onClick = onNavigateToUserPreferences,
-                        buttonText = stringResource(id = R.string.settings_configure_preferences),
-                        icon = Icons.Default.Face
-                )
-
-                // ======= SECTION 2: AI MODEL CONFIGURATION =======
-                SettingsSectionTitle(
+                // ======= AI模型配置 =======
+                SettingsSection(
                         title = stringResource(id = R.string.settings_section_ai_model),
                         icon = Icons.Default.Settings
-                )
+                ) {
+                        CompactSettingsItem(
+                                title = stringResource(id = R.string.settings_model_parameters),
+                                subtitle = "模型参数和API配置",
+                                icon = Icons.Default.Api,
+                                onClick = navigateToModelConfig
+                        )
+                        
+                        CompactSettingsItem(
+                                title = stringResource(id = R.string.settings_functional_model),
+                                subtitle = "功能模型专项配置",
+                                icon = Icons.Default.Tune,
+                                onClick = navigateToFunctionalConfig
+                        )
+                        
+                        CompactSettingsItem(
+                                title = "语音服务配置",
+                                subtitle = "TTS/STT服务设置",
+                                icon = Icons.Default.RecordVoiceOver,
+                                onClick = navigateToSpeechServicesSettings
+                        )
+                        
+                        CompactSettingsItem(
+                                title = "自定义请求头",
+                                subtitle = "API请求头字段配置",
+                                icon = Icons.Default.AddModerator,
+                                onClick = navigateToCustomHeadersSettings
+                        )
+                }
 
-                // 语音服务配置
-                SettingsCard(
-                    title = "语音服务配置",
-                    description = "配置文本转语音(TTS)和语音转文本(STT)的服务类型和API参数。",
-                    onClick = navigateToSpeechServicesSettings,
-                    buttonText = "配置语音服务",
-                    icon = Icons.Default.RecordVoiceOver
-                )
+                // ======= 提示词配置 =======
+                SettingsSection(
+                        title = stringResource(R.string.settings_prompt_section),
+                        icon = Icons.Default.Message
+                ) {
+                        CompactSettingsItem(
+                                title = stringResource(R.string.settings_prompt_title),
+                                subtitle = "系统和模型提示词",
+                                icon = Icons.Default.ChatBubble,
+                                onClick = navigateToModelPrompts
+                        )
+                        
+                        CompactSettingsItem(
+                                title = stringResource(R.string.settings_functional_prompt_title),
+                                subtitle = "功能专用提示词模板",
+                                icon = Icons.Default.Settings,
+                                onClick = navigateToFunctionalPrompts
+                        )
+                }
 
-                // 自定义请求头卡片
-                SettingsCard(
-                    title = "自定义请求头",
-                    description = "为API请求添加自定义HTTP头，例如 User-Agent 或其他代理所需的字段。",
-                    onClick = navigateToCustomHeadersSettings,
-                    buttonText = "配置请求头",
-                    icon = Icons.Default.AddModerator
-                )
-
-                // 模型与参数配置卡片
-                SettingsCard(
-                        title = stringResource(id = R.string.settings_model_parameters),
-                        description = stringResource(id = R.string.settings_model_parameters_desc),
-                        onClick = navigateToModelConfig,
-                        buttonText = stringResource(id = R.string.settings_configure_model),
-                        icon = Icons.Default.Api
-                )
-
-                // 功能模型配置卡片
-                SettingsCard(
-                        title = stringResource(id = R.string.settings_functional_model),
-                        description = stringResource(id = R.string.settings_functional_model_desc),
-                        onClick = navigateToFunctionalConfig,
-                        buttonText = stringResource(id = R.string.settings_configure_function),
-                        icon = Icons.Default.Tune
-                )
-
-                // ======= SECTION 3: PROMPT CONFIGURATION =======
-                SettingsSectionTitle(title = stringResource(R.string.settings_prompt_section), icon = Icons.Default.Message)
-
-                // 模型提示词设置
-                SettingsCard(
-                        title = stringResource(R.string.settings_prompt_title),
-                        description = stringResource(R.string.settings_prompt_desc),
-                        onClick = navigateToModelPrompts,
-                        buttonText = stringResource(R.string.settings_configure_prompt),
-                        icon = Icons.Default.ChatBubble
-                )
-
-                // 功能提示词配置卡片
-                SettingsCard(
-                        title = stringResource(R.string.settings_functional_prompt_title),
-                        description = stringResource(R.string.settings_functional_prompt_desc),
-                        onClick = navigateToFunctionalPrompts,
-                        buttonText = stringResource(R.string.settings_configure_functional_prompt),
-                        icon = Icons.Default.Settings
-                )
-
-                // ======= SECTION 4: APPEARANCE =======
-                SettingsSectionTitle(title = stringResource(R.string.settings_appearance_section), icon = Icons.Default.Palette)
-
-                // 主题设置
-                SettingsCard(
-                        title = stringResource(id = R.string.settings_theme_appearance),
-                        description = stringResource(id = R.string.settings_theme_appearance_desc),
-                        onClick = navigateToThemeSettings,
-                        buttonText = stringResource(id = R.string.settings_customize_theme),
-                        icon = Icons.Default.Palette
-                )
-
-                // 语言设置
-                SettingsCard(
-                        title = stringResource(R.string.language_settings),
-                        description = stringResource(R.string.language_settings_desc),
-                        onClick = navigateToLanguageSettings,
-                        buttonText = stringResource(R.string.change_language),
-                        icon = Icons.Default.Language
-                )
-
-                // 聊天记录管理
-                SettingsCard(
-                        title = stringResource(id = R.string.settings_data_backup),
-                        description = stringResource(id = R.string.settings_data_backup_desc),
-                        onClick = navigateToChatHistorySettings,
-                        buttonText = stringResource(id = R.string.settings_manage_backup),
-                        icon = Icons.Default.History
-                )
-
-                // ======= SECTION 5: DISPLAY AND BEHAVIOR =======
-                SettingsSectionTitle(
+                // ======= 显示和行为设置 =======
+                SettingsSection(
                         title = stringResource(id = R.string.settings_section_display),
                         icon = Icons.Default.Visibility
-                )
-
-                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(bottom = 16.dp)
-                                ) {
-                                        Icon(
-                                                imageVector = Icons.Default.DisplaySettings,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                                text =
-                                                        stringResource(
-                                                                id = R.string.display_settings
-                                                        ),
-                                                style = MaterialTheme.typography.titleMedium
-                                        )
-                                }
-
-                                // 上下文长度滑块
-                                SettingsSlider(
-                                    title = "上下文长度",
-                                    description = "控制模型记忆的对话长度（单位：千tokens）。",
-                                    value = contextLengthInput,
-                                    onValueChange = {
+                ) {
+                        // 滑块控件
+                        CompactSlider(
+                                title = "上下文长度",
+                                subtitle = "模型记忆对话长度(k tokens)",
+                                value = contextLengthInput,
+                                onValueChange = {
                                         contextLengthInput = it
                                         scope.launch {
-                                            apiPreferences.saveContextLength(it)
-                                            showSaveSuccessMessage = true
+                                                apiPreferences.saveContextLength(it)
+                                                showSaveSuccessMessage = true
                                         }
-                                    },
-                                    valueRange = 1f..1024f,
-                                    steps = 1022,
-                                    decimalFormatPattern = "#.#",
-                                    unitText = "k"
-                                )
+                                },
+                                valueRange = 1f..1024f,
+                                steps = 1022,
+                                decimalFormatPattern = "#.#",
+                                unitText = "k"
+                        )
 
-                                // 摘要Token阈值滑块
-                                SettingsSlider(
-                                        title = "摘要Token阈值",
-                                        description = "当上下文Token使用率超过此阈值时，自动触发聊天摘要。范围 0.1-0.95。",
-                                        value = summaryTokenThresholdInput,
-                                        onValueChange = {
-                                                summaryTokenThresholdInput = it
-                                                scope.launch {
-                                                        apiPreferences.saveSummaryTokenThreshold(it)
-                                                        showSaveSuccessMessage = true
-                                                }
-                                        },
-                                        valueRange = 0.1f..0.95f,
-                                        steps = 84,
-                                        decimalFormatPattern = "#.##"
-                                )
+                        CompactSlider(
+                                title = "摘要Token阈值",
+                                subtitle = "触发聊天摘要的阈值(0.1-0.95)",
+                                value = summaryTokenThresholdInput,
+                                onValueChange = {
+                                        summaryTokenThresholdInput = it
+                                        scope.launch {
+                                                apiPreferences.saveSummaryTokenThreshold(it)
+                                                showSaveSuccessMessage = true
+                                        }
+                                },
+                                valueRange = 0.1f..0.95f,
+                                steps = 84,
+                                decimalFormatPattern = "#.##"
+                        )
 
-                                // 屏幕常亮开关
-                                SettingsToggle(
+                        // 开关控件
+                        Column(
+                                modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                                CompactToggleWithDescription(
                                         title = stringResource(id = R.string.settings_keep_screen_on),
-                                        description =
-                                                stringResource(
-                                                        id = R.string.settings_keep_screen_on_desc
-                                                ),
+                                        description = stringResource(id = R.string.settings_keep_screen_on_desc),
                                         checked = keepScreenOnInput,
                                         onCheckedChange = {
                                                 keepScreenOnInput = it
@@ -338,14 +235,10 @@ fun SettingsScreen(
                                                 }
                                         }
                                 )
-
-                                // 帧率显示开关
-                                SettingsToggle(
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                                CompactToggleWithDescription(
                                         title = stringResource(id = R.string.show_fps_counter),
-                                        description =
-                                                stringResource(
-                                                        id = R.string.fps_counter_description
-                                                ),
+                                        description = stringResource(id = R.string.fps_counter_description),
                                         checked = showFpsCounterInput,
                                         onCheckedChange = {
                                                 showFpsCounterInput = it
@@ -358,402 +251,408 @@ fun SettingsScreen(
                         }
                 }
 
-                // ======= SECTION 6: PERMISSIONS AND SECURITY =======
-                SettingsSectionTitle(
-                        title = stringResource(id = R.string.settings_section_permissions),
+                // ======= 数据和权限 =======
+                SettingsSection(
+                        title = "数据和权限",
                         icon = Icons.Default.Security
-                )
-
-                // 工具权限设置卡片
-                SettingsCard(
-                        title = stringResource(id = R.string.settings_tool_permissions),
-                        description = stringResource(id = R.string.settings_tool_permissions_desc),
-                        onClick = navigateToToolPermissions,
-                        buttonText = stringResource(id = R.string.settings_configure_permissions),
-                        icon = Icons.Default.AdminPanelSettings
-                )
-
-                // ======= SECTION 7: USAGE STATISTICS =======
-                SettingsSectionTitle(
-                        title = stringResource(id = R.string.settings_section_usage),
-                        icon = Icons.Default.Analytics
-                )
-
-                // Token统计卡片
-                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(bottom = 16.dp)
-                                ) {
-                                        Icon(
-                                                imageVector = Icons.Default.DataUsage,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                                text =
-                                                        stringResource(
-                                                                id =
-                                                                        R.string
-                                                                                .settings_token_statistics
-                                                        ),
-                                                style = MaterialTheme.typography.titleMedium
-                                        )
-                                }
-
-                                // 从数据源读取token统计数据
-                                val chatHistories = remember {
-                                        ChatHistoryManager.getInstance(context)
-                                }
-                                var totalInputTokens by remember { mutableStateOf(0) }
-                                var totalOutputTokens by remember { mutableStateOf(0) }
-                                var preferenceAnalysisInputTokens by remember { mutableStateOf(0) }
-                                var preferenceAnalysisOutputTokens by remember { mutableStateOf(0) }
-
-                                // 读取和统计token数据
-                                LaunchedEffect(Unit) {
-                                        // 聊天历史token计数
-                                        chatHistories.chatHistoriesFlow.collect { histories ->
-                                                totalInputTokens =
-                                                        histories.sumOf { it.inputTokens }
-                                                totalOutputTokens =
-                                                        histories.sumOf { it.outputTokens }
-                                        }
-                                }
-
-                                LaunchedEffect(Unit) {
-                                        apiPreferences.preferenceAnalysisInputTokensFlow.collect {
-                                                tokens ->
-                                                preferenceAnalysisInputTokens = tokens
-                                        }
-                                }
-
-                                LaunchedEffect(Unit) {
-                                        apiPreferences.preferenceAnalysisOutputTokensFlow.collect {
-                                                tokens ->
-                                                preferenceAnalysisOutputTokens = tokens
-                                        }
-                                }
-
-                                // 计算费用
-                                val usdToRmbRate = 7.2
-                                val chatInputCost =
-                                        totalInputTokens * 0.27 / 1_000_000 * usdToRmbRate
-                                val chatOutputCost =
-                                        totalOutputTokens * 1.10 / 1_000_000 * usdToRmbRate
-                                val preferenceAnalysisInputCost =
-                                        preferenceAnalysisInputTokens * 0.27 / 1_000_000 *
-                                                usdToRmbRate
-                                val preferenceAnalysisOutputCost =
-                                        preferenceAnalysisOutputTokens * 1.10 / 1_000_000 *
-                                                usdToRmbRate
-                                val totalCost =
-                                        chatInputCost +
-                                                chatOutputCost +
-                                                preferenceAnalysisInputCost +
-                                                preferenceAnalysisOutputCost
-
-                                // 统计信息表格
-                                Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-                                        TokenStatRow(
-                                                label =
-                                                        stringResource(
-                                                                id =
-                                                                        R.string
-                                                                                .settings_chat_input_token
-                                                        ),
-                                                value = totalInputTokens.toString(),
-                                                cost = "¥${String.format("%.2f", chatInputCost)}"
-                                        )
-
-                                        TokenStatRow(
-                                                label =
-                                                        stringResource(
-                                                                id =
-                                                                        R.string
-                                                                                .settings_chat_output_token
-                                                        ),
-                                                value = totalOutputTokens.toString(),
-                                                cost = "¥${String.format("%.2f", chatOutputCost)}"
-                                        )
-
-                                        TokenStatRow(
-                                                label =
-                                                        stringResource(
-                                                                id =
-                                                                        R.string
-                                                                                .settings_preference_input_token
-                                                        ),
-                                                value = preferenceAnalysisInputTokens.toString(),
-                                                cost =
-                                                        "¥${String.format("%.2f", preferenceAnalysisInputCost)}"
-                                        )
-
-                                        TokenStatRow(
-                                                label =
-                                                        stringResource(
-                                                                id =
-                                                                        R.string
-                                                                                .settings_preference_output_token
-                                                        ),
-                                                value = preferenceAnalysisOutputTokens.toString(),
-                                                cost =
-                                                        "¥${String.format("%.2f", preferenceAnalysisOutputCost)}"
-                                        )
-
-                                        Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-                                        TokenStatRow(
-                                                label =
-                                                        stringResource(
-                                                                id = R.string.settings_total
-                                                        ),
-                                                value =
-                                                        (totalInputTokens +
-                                                                        totalOutputTokens +
-                                                                        preferenceAnalysisInputTokens +
-                                                                        preferenceAnalysisOutputTokens)
-                                                                .toString(),
-                                                cost = "¥${String.format("%.2f", totalCost)}",
-                                                isHighlighted = true
-                                        )
-                                }
-
-                                // 重置按钮
-                                Row(
-                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                                        horizontalArrangement = Arrangement.End
-                                ) {
-                                        OutlinedButton(
-                                                onClick = {
-                                                        scope.launch {
-                                                                apiPreferences
-                                                                        .resetPreferenceAnalysisTokens()
-                                                                showSaveSuccessMessage = true
-                                                        }
-                                                }
-                                        ) {
-                                                Text(
-                                                        stringResource(
-                                                                id =
-                                                                        R.string
-                                                                                .settings_reset_analysis_count
-                                                        )
-                                                )
-                                        }
-                                }
-
-                                // 幽默解释
-                                Card(
-                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                                        colors =
-                                                CardDefaults.cardColors(
-                                                        containerColor =
-                                                                MaterialTheme.colorScheme
-                                                                        .surfaceVariant.copy(
-                                                                        alpha = 0.5f
-                                                                )
-                                                )
-                                ) {
-                                        Column(modifier = Modifier.padding(8.dp)) {
-                                                Text(
-                                                        text =
-                                                                stringResource(
-                                                                        id =
-                                                                                R.string
-                                                                                        .settings_why_token_stats
-                                                                ),
-                                                        style =
-                                                                MaterialTheme.typography.bodyMedium
-                                                                        .copy(
-                                                                                fontWeight =
-                                                                                        FontWeight
-                                                                                                .Bold
-                                                                        ),
-                                                        modifier = Modifier.padding(bottom = 4.dp)
-                                                )
-
-                                                Text(
-                                                        text =
-                                                                stringResource(
-                                                                        id =
-                                                                                R.string
-                                                                                        .settings_token_stats_explanation
-                                                                ),
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color =
-                                                                MaterialTheme.colorScheme
-                                                                        .onSurfaceVariant
-                                                )
-                                        }
-                                }
-                        }
-                }
-        }
-}
-
-@Composable
-private fun SettingsCard(
-        title: String,
-        description: String,
-        onClick: () -> Unit,
-        buttonText: String,
-        icon: androidx.compose.ui.graphics.vector.ImageVector
-) {
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                Column(
-                        modifier =
-                                Modifier.fillMaxWidth() // 确保Column填满Card的宽度
-                                        .padding(16.dp)
                 ) {
-                        Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                        ) {
-                                Icon(
-                                        imageVector = icon,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(text = title, style = MaterialTheme.typography.titleMedium)
-                        }
-
-                        Text(
-                                text = description,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(bottom = 16.dp)
+                        CompactSettingsItem(
+                                title = stringResource(id = R.string.settings_tool_permissions),
+                                subtitle = "工具权限和安全设置",
+                                icon = Icons.Default.AdminPanelSettings,
+                                onClick = navigateToToolPermissions
                         )
+                        
+                        CompactSettingsItem(
+                                title = stringResource(id = R.string.settings_data_backup),
+                                subtitle = "聊天记录备份管理",
+                                icon = Icons.Default.History,
+                                onClick = navigateToChatHistorySettings
+                        )
+                }
 
-                        // 使用Row替代Button的align(End)
-                        Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End
-                        ) { Button(onClick = onClick) { Text(buttonText) } }
+                // ======= Token使用统计 =======
+                TokenUsageCompactCard(context, apiPreferences, scope) {
+                        showSaveSuccessMessage = true
+                }
+
+                // 底部间距
+                Spacer(modifier = Modifier.height(16.dp))
+        }
+}
+
+@Composable
+private fun SettingsSection(
+        title: String,
+        icon: ImageVector,
+        content: @Composable ColumnScope.() -> Unit
+) {
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                // 分组标题
+                Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 6.dp)
+                ) {
+                        Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                                text = title,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                        )
+                }
+                
+                // 内容区域
+                Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        )
+                ) {
+                        Column(
+                                modifier = Modifier.padding(12.dp),
+                                content = content
+                        )
                 }
         }
 }
 
 @Composable
-private fun SettingsToggle(
+private fun CompactSettingsItem(
+        title: String,
+        subtitle: String,
+        icon: ImageVector,
+        onClick: () -> Unit
+) {
+        Row(
+                modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onClick() }
+                        .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+        ) {
+                Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                )
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                        )
+                }
+                
+                Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                )
+        }
+}
+
+@Composable
+private fun CompactToggleWithDescription(
         title: String,
         description: String,
         checked: Boolean,
         onCheckedChange: (Boolean) -> Unit
 ) {
         Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                verticalAlignment = Alignment.Top,
+                modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
         ) {
-                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                        Text(text = title, style = MaterialTheme.typography.bodyMedium)
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                        )
                         Text(
                                 text = description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                         )
                 }
-
                 Switch(
                         checked = checked,
                         onCheckedChange = onCheckedChange,
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.scale(0.8f)
                 )
         }
 }
 
 @Composable
-private fun SettingsSlider(
-    title: String,
-    description: String,
-    value: Float,
-    onValueChange: (Float) -> Unit,
-    valueRange: ClosedFloatingPointRange<Float>,
-    steps: Int,
-    decimalFormatPattern: String,
-    unitText: String? = null
+private fun CompactSlider(
+        title: String,
+        subtitle: String,
+        value: Float,
+        onValueChange: (Float) -> Unit,
+        valueRange: ClosedFloatingPointRange<Float>,
+        steps: Int,
+        decimalFormatPattern: String,
+        unitText: String? = null
 ) {
-    val focusManager = LocalFocusManager.current
-    val df = remember(decimalFormatPattern) { DecimalFormat(decimalFormatPattern) }
+        val focusManager = LocalFocusManager.current
+        val df = remember(decimalFormatPattern) { DecimalFormat(decimalFormatPattern) }
 
-    var sliderValue by remember(value) { mutableStateOf(value) }
-    var textValue by remember(value) { mutableStateOf(df.format(value)) }
+        var sliderValue by remember(value) { mutableStateOf(value) }
+        var textValue by remember(value) { mutableStateOf(df.format(value)) }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-        Text(text = title, style = MaterialTheme.typography.bodyMedium)
-        Text(
-            text = description,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Slider(
-                value = sliderValue,
-                onValueChange = {
-                    sliderValue = it
-                    textValue = df.format(it)
-                },
-                onValueChangeFinished = {
-                    onValueChange(sliderValue)
-                },
-                valueRange = valueRange,
-                steps = steps,
-                modifier = Modifier.weight(1f)
-            )
-
-            // Spacer to align the text input
-            Spacer(modifier = Modifier.width(8.dp))
-
-            BasicTextField(
-                value = textValue,
-                onValueChange = { newText ->
-                    textValue = newText
-                    newText.toFloatOrNull()?.let {
-                        sliderValue = it.coerceIn(valueRange)
-                    }
-                },
+        Column(
                 modifier = Modifier
-                    .width(60.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        RoundedCornerShape(4.dp)
-                    )
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                textStyle = TextStyle(
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center
-                ),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        val finalValue = textValue.toFloatOrNull()?.coerceIn(valueRange) ?: sliderValue
-                        onValueChange(finalValue)
-                        textValue = df.format(finalValue)
-                        focusManager.clearFocus()
-                    }
-                ),
-                singleLine = true
-            )
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                        .padding(8.dp)
+        ) {
+                Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                        text = title,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                        text = subtitle,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 10.sp
+                                )
+                        }
 
-            // Unit text (like "k") - wrapped in a Box to ensure consistent alignment
-            Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.CenterStart) {
-                if (unitText != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                BasicTextField(
+                                        value = textValue,
+                                        onValueChange = { newText ->
+                                                textValue = newText
+                                                newText.toFloatOrNull()?.let {
+                                                        sliderValue = it.coerceIn(valueRange)
+                                                }
+                                        },
+                                        modifier = Modifier
+                                                .width(40.dp)
+                                                .background(
+                                                        MaterialTheme.colorScheme.surfaceVariant,
+                                                        RoundedCornerShape(4.dp)
+                                                )
+                                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                                        textStyle = TextStyle(
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                textAlign = TextAlign.Center
+                                        ),
+                                        keyboardOptions = KeyboardOptions(
+                                                keyboardType = KeyboardType.Number,
+                                                imeAction = ImeAction.Done
+                                        ),
+                                        keyboardActions = KeyboardActions(
+                                                onDone = {
+                                                        val finalValue = textValue.toFloatOrNull()?.coerceIn(valueRange) ?: sliderValue
+                                                        onValueChange(finalValue)
+                                                        textValue = df.format(finalValue)
+                                                        focusManager.clearFocus()
+                                                }
+                                        ),
+                                        singleLine = true
+                                )
+
+                                if (unitText != null) {
+                                        Text(
+                                                text = unitText,
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 10.sp
+                                                ),
+                                                modifier = Modifier.padding(start = 2.dp)
+                                        )
+                                }
+                        }
+                }
+
+                Slider(
+                        value = sliderValue,
+                        onValueChange = {
+                                sliderValue = it
+                                textValue = df.format(it)
+                        },
+                        onValueChangeFinished = {
+                                onValueChange(sliderValue)
+                        },
+                        valueRange = valueRange,
+                        steps = steps,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                )
+        }
+}
+
+@Composable
+private fun TokenUsageCompactCard(
+        context: android.content.Context,
+        apiPreferences: ApiPreferences,
+        scope: kotlinx.coroutines.CoroutineScope,
+        onSuccess: () -> Unit
+) {
+    // State to hold token data for all function types
+    val functionTokenUsage = remember { mutableStateMapOf<FunctionType, Pair<Int, Int>>() }
+    var expanded by remember { mutableStateOf(false) }
+
+    // Collect tokens for EACH function type from ApiPreferences
+    LaunchedEffect(Unit) {
+        for (functionType in FunctionType.values()) {
+            scope.launch {
+                apiPreferences.getTokensForFunctionFlow(functionType).collect { tokens ->
+                    if (tokens.first > 0 || tokens.second > 0) {
+                        functionTokenUsage[functionType] = tokens
+                    } else {
+                        // This is important to remove if it becomes 0 after reset
+                        functionTokenUsage.remove(functionType)
+                    }
+                }
+            }
+        }
+    }
+
+    val usdToRmbRate = 7.2
+
+    // Calculate costs for each function
+    val functionCosts = functionTokenUsage.mapValues { (_, tokens) ->
+        val inputCost = tokens.first * 0.27 / 1_000_000 * usdToRmbRate
+        val outputCost = tokens.second * 1.10 / 1_000_000 * usdToRmbRate
+        inputCost + outputCost
+    }
+
+    val totalInputTokens = functionTokenUsage.values.sumOf { it.first }
+    val totalOutputTokens = functionTokenUsage.values.sumOf { it.second }
+    val totalCost = functionCosts.values.sum()
+    val totalTokens = totalInputTokens + totalOutputTokens
+
+    SettingsSection(
+            title = stringResource(id = R.string.settings_section_usage),
+            icon = Icons.Default.Analytics
+    ) {
+        Column(modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .clickable { expanded = !expanded }) {
+            Row(
+                    modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = unitText,
-                        style = MaterialTheme.typography.bodySmall.copy(
+                            text = "Token使用统计",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                            text = "$totalTokens tokens · ¥${String.format("%.2f", totalCost)}",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
-                        ),
-                        modifier = Modifier.padding(start = 4.dp)
                     )
+                }
+                Icon(
+                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            androidx.compose.animation.AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                    // Header Row
+                    TokenStatRow(
+                            label = "功能",
+                            inputTokens = -1, // Use negative as a flag for header
+                            outputTokens = -1,
+                            cost = -1.0,
+                            isHighlighted = true
+                    )
+                    Divider(modifier = Modifier.padding(vertical = 2.dp))
+
+                    val sortedFunctions = functionTokenUsage.entries.sortedBy { it.key.name }
+
+                    if (sortedFunctions.isEmpty()) {
+                        Text(
+                                text = "暂无功能模块的Token使用记录。",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(vertical = 8.dp).align(Alignment.CenterHorizontally)
+                        )
+                    } else {
+                        for ((functionType, tokens) in sortedFunctions) {
+                            val (input, output) = tokens
+                            val cost = functionCosts[functionType] ?: 0.0
+                            TokenStatRow(
+                                    label = functionType.name.replace("_", " ").lowercase()
+                                            .replaceFirstChar { it.uppercase() },
+                                    inputTokens = input,
+                                    outputTokens = output,
+                                    cost = cost
+                            )
+                        }
+                    }
+
+                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                    TokenStatRow(
+                            label = stringResource(id = R.string.settings_total),
+                            inputTokens = totalInputTokens,
+                            outputTokens = totalOutputTokens,
+                            cost = totalCost,
+                            isHighlighted = true
+                    )
+
+                    Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        apiPreferences.resetAllFunctionTokenCounts()
+                                        onSuccess()
+                                    }
+                                }
+                        ) {
+                            Text("重置所有计数", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                 }
             }
         }
@@ -761,81 +660,55 @@ private fun SettingsSlider(
 }
 
 @Composable
-private fun SettingsSectionTitle(
-        title: String,
-        icon: androidx.compose.ui.graphics.vector.ImageVector
-) {
-        Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(vertical = 8.dp)
-        ) {
-                Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                )
-        }
-        Divider(modifier = Modifier.padding(bottom = 8.dp))
-}
-
-@Composable
 private fun TokenStatRow(
         label: String,
-        value: String,
-        cost: String,
+        inputTokens: Int,
+        outputTokens: Int,
+        cost: Double,
         isHighlighted: Boolean = false
 ) {
-        Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-        ) {
-                Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color =
-                                if (isHighlighted) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(0.6f), // 限制文本宽度为60%
-                        maxLines = 2, // 允许最多两行
-                        softWrap = true // 允许换行
-                )
+    val textStyle = if (isHighlighted)
+        MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+    else
+        MaterialTheme.typography.bodySmall
 
-                Row(modifier = Modifier.weight(0.4f), horizontalArrangement = Arrangement.End) {
-                        Text(
-                                text = value,
-                                style =
-                                        MaterialTheme.typography.bodyMedium.copy(
-                                                fontWeight =
-                                                        if (isHighlighted) FontWeight.Bold
-                                                        else FontWeight.Normal
-                                        ),
-                                color =
-                                        if (isHighlighted) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.width(IntrinsicSize.Min)
-                        )
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        Text(
-                                text = cost,
-                                style =
-                                        MaterialTheme.typography.bodyMedium.copy(
-                                                fontWeight =
-                                                        if (isHighlighted) FontWeight.Bold
-                                                        else FontWeight.Normal
-                                        ),
-                                color =
-                                        if (isHighlighted) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface
-                        )
-                }
+    Row(
+            modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+                text = label,
+                style = textStyle,
+                modifier = Modifier.weight(0.3f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+        )
+        if (inputTokens >= 0) { // Check for header flag
+            Text(
+                    text = inputTokens.toString(),
+                    style = textStyle,
+                    modifier = Modifier.weight(0.25f),
+                    textAlign = TextAlign.End
+            )
+            Text(
+                    text = outputTokens.toString(),
+                    style = textStyle,
+                    modifier = Modifier.weight(0.25f),
+                    textAlign = TextAlign.End
+            )
+            Text(
+                    text = "¥${String.format(if (cost > 0 && cost < 0.01) "%.3f" else "%.2f", cost)}",
+                    style = textStyle,
+                    modifier = Modifier.weight(0.2f),
+                    textAlign = TextAlign.End
+            )
+        } else { // Header text
+            Text(text = "输入", style = textStyle, modifier = Modifier.weight(0.25f), textAlign = TextAlign.End)
+            Text(text = "输出", style = textStyle, modifier = Modifier.weight(0.25f), textAlign = TextAlign.End)
+            Text(text = "费用", style = textStyle, modifier = Modifier.weight(0.2f), textAlign = TextAlign.End)
         }
+    }
 }

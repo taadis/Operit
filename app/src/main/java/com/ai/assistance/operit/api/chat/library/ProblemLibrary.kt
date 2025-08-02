@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import com.ai.assistance.operit.data.model.FunctionType
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -341,7 +342,8 @@ object ProblemLibrary {
                 stream.collect { content -> result.append(content) }
             }
 
-            apiPreferences?.updatePreferenceAnalysisTokens(
+            apiPreferences?.updateTokensForFunction(
+                    FunctionType.PROBLEM_LIBRARY,
                     aiService.inputTokenCount,
                     aiService.outputTokenCount
             )

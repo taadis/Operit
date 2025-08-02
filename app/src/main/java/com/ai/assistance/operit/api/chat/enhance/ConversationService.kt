@@ -134,7 +134,7 @@ class ConversationService(private val context: Context) {
             // 将总结token计数添加到用户偏好分析的token统计中
             try {
                 Log.d(TAG, "总结生成使用了输入token: $inputTokens, 输出token: $outputTokens")
-                apiPreferences.updatePreferenceAnalysisTokens(inputTokens, outputTokens)
+                apiPreferences.updateTokensForFunction(FunctionType.SUMMARY, inputTokens, outputTokens)
                 Log.d(TAG, "已将总结token统计添加到用户偏好分析token计数中")
             } catch (e: Exception) {
                 Log.e(TAG, "更新token统计失败", e)
@@ -544,7 +544,8 @@ Now, generate ONLY the patch in the custom format based on all the rules.
 
             if (success) {
                 Log.d(TAG, "Attempt 1: Custom Loose Text Patch succeeded.")
-                apiPreferences.updatePreferenceAnalysisTokens(
+                apiPreferences.updateTokensForFunction(
+                        FunctionType.FILE_BINDING,
                         fileBindingService.inputTokenCount,
                         fileBindingService.outputTokenCount
                 )
@@ -627,7 +628,8 @@ Now, generate ONLY the complete and final merged file content.
                             .joinToString("\n")
 
             Log.d(TAG, "Attempt 2: Robust full-content merge successful.")
-            apiPreferences.updatePreferenceAnalysisTokens(
+            apiPreferences.updateTokensForFunction(
+                    FunctionType.FILE_BINDING,
                     fileBindingService.inputTokenCount,
                     fileBindingService.outputTokenCount
             )
@@ -772,7 +774,11 @@ Provide the next action as a single JSON object.
             val inputTokens = uiControllerService.inputTokenCount
             val outputTokens = uiControllerService.outputTokenCount
             Log.d(TAG, "UI Controller使用了输入token: $inputTokens, 输出token: $outputTokens")
-            apiPreferences.updatePreferenceAnalysisTokens(inputTokens, outputTokens)
+            apiPreferences.updateTokensForFunction(
+                    FunctionType.UI_CONTROLLER,
+                    inputTokens,
+                    outputTokens
+            )
             Log.d(TAG, "已将UI Controller token统计添加到用户偏好分析token计数中")
         } catch (e: Exception) {
             Log.e(TAG, "更新token统计失败", e)
@@ -837,7 +843,11 @@ Provide the next action as a single JSON object.
             val inputTokens = webControllerService.inputTokenCount
             val outputTokens = webControllerService.outputTokenCount
             Log.d(TAG, "Web Controller used input tokens: $inputTokens, output tokens: $outputTokens")
-            apiPreferences.updatePreferenceAnalysisTokens(inputTokens, outputTokens)
+            apiPreferences.updateTokensForFunction(
+                    FunctionType.UI_CONTROLLER,
+                    inputTokens,
+                    outputTokens
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update token stats for Web Controller", e)
         }

@@ -534,12 +534,17 @@ class EnhancedAIService private constructor(private val context: Context) {
                         // 发射当前内容片段
                         emit(content)
                     }
-                    // Update accumulated token counts
-                    accumulatedInputTokenCount += serviceForFunction.inputTokenCount
-                    accumulatedOutputTokenCount += serviceForFunction.outputTokenCount
+
+                    // Update accumulated token counts and persist them
+                    val inputTokens = serviceForFunction.inputTokenCount
+                    val outputTokens = serviceForFunction.outputTokenCount
+                    accumulatedInputTokenCount += inputTokens
+                    accumulatedOutputTokenCount += outputTokens
+                    apiPreferences.updateTokensForFunction(functionType, inputTokens, outputTokens)
+
                     Log.d(
                             TAG,
-                            "Token count updated. Input: ${serviceForFunction.inputTokenCount}, Output: ${serviceForFunction.outputTokenCount}. Accumulated: $accumulatedInputTokenCount, $accumulatedOutputTokenCount"
+                            "Token count updated for $functionType. Input: $inputTokens, Output: $outputTokens. Turn Accumulated: $accumulatedInputTokenCount, $accumulatedOutputTokenCount"
                     )
                     Log.d(
                             TAG,
@@ -1189,13 +1194,16 @@ class EnhancedAIService private constructor(private val context: Context) {
                     collector.emit(content)
                 }
 
-                // Update accumulated token counts
-                accumulatedInputTokenCount += serviceForFunction.inputTokenCount
-                accumulatedOutputTokenCount += serviceForFunction.outputTokenCount
-                
+                // Update accumulated token counts and persist them
+                val inputTokens = serviceForFunction.inputTokenCount
+                val outputTokens = serviceForFunction.outputTokenCount
+                accumulatedInputTokenCount += inputTokens
+                accumulatedOutputTokenCount += outputTokens
+                apiPreferences.updateTokensForFunction(functionType, inputTokens, outputTokens)
+
                 Log.d(
                         TAG,
-                        "Token count updated after tool result. Input: ${serviceForFunction.inputTokenCount}, Output: ${serviceForFunction.outputTokenCount}. Accumulated: $accumulatedInputTokenCount, $accumulatedOutputTokenCount"
+                        "Token count updated after tool result for $functionType. Input: $inputTokens, Output: $outputTokens. Turn Accumulated: $accumulatedInputTokenCount, $accumulatedOutputTokenCount"
                 )
 
                 val processingTime = System.currentTimeMillis() - aiStartTime
