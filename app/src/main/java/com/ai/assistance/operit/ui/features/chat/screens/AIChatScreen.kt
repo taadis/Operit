@@ -109,6 +109,7 @@ fun AIChatScreen(
     )
     val chatHeaderPipIconColor by preferencesManager.chatHeaderPipIconColor.collectAsState(initial = null)
     val chatHeaderOverlayMode by preferencesManager.chatHeaderOverlayMode.collectAsState(initial = false)
+    val showInputProcessingStatus by preferencesManager.showInputProcessingStatus.collectAsState(initial = true)
     val hasBackgroundImage = useBackgroundImage && backgroundImageUri != null
 
     // Collect chat style from preferences
@@ -464,7 +465,8 @@ fun AIChatScreen(
                                 externalAttachmentPanelState = attachmentPanelState,
                                 onAttachmentPanelStateChange = { newState ->
                                     actualViewModel.updateAttachmentPanelState(newState)
-                                }
+                                },
+                                showInputProcessingStatus = showInputProcessingStatus
                         )
                     }
                 }

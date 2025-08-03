@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.ui.features.packages.screens
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -44,6 +45,7 @@ import com.ai.assistance.operit.data.mcp.InstallResult
 import com.ai.assistance.operit.data.mcp.InstallProgress
 
 /** MCP配置屏幕 - 极简风格界面，专注于插件快速部署 */
+@SuppressLint("StateFlowValueCalledInComposition")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MCPConfigScreen() {
@@ -139,6 +141,11 @@ fun MCPConfigScreen() {
     var remoteHostInput by remember { mutableStateOf("") }
     var remotePortInput by remember { mutableStateOf("") }
 
+    // 新增：远程服务编辑对话框状态
+    var showRemoteEditDialog by remember { mutableStateOf(false) }
+    var editingRemoteServer by remember { mutableStateOf<com.ai.assistance.operit.data.mcp.MCPServer?>(null) }
+
+
     // 获取选中插件的配置
     LaunchedEffect(selectedPluginId) {
         selectedPluginId?.let { pluginConfigJson = mcpLocalServer.getPluginConfig(it) }
@@ -165,29 +172,35 @@ fun MCPConfigScreen() {
     fun getPluginAsServer(
             pluginId: String
     ): com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer? {
-        val existingServer = mcpRepository.mcpServers.value.find { it.id == pluginId }
+        val pluginInfo = mcpRepository.getInstalledPluginInfo(pluginId)
 
-        if (existingServer != null) {
-            return com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer(
-                    id = existingServer.id,
-                    name = existingServer.name,
-                    description = existingServer.description,
-                    logoUrl = existingServer.logoUrl,
-                    stars = existingServer.stars,
-                    category = existingServer.category,
-                    requiresApiKey = existingServer.requiresApiKey,
-                    author = existingServer.author,
-                    isVerified = existingServer.isVerified,
-                    isInstalled = existingServer.isInstalled,
-                    version = existingServer.version,
-                    updatedAt = existingServer.updatedAt,
-                    longDescription = existingServer.longDescription,
-                    repoUrl = existingServer.repoUrl
+        // 尝试从内存中的服务器列表查找
+        val existingServer = mcpRepository.mcpServers.value.find { it.id == pluginId }
+        
+        // 如果在列表中找到，并且类型是远程，直接使用
+        if (existingServer != null && existingServer.type == "remote") {
+             return com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer(
+                id = existingServer.id,
+                name = existingServer.name,
+                description = existingServer.description,
+                logoUrl = existingServer.logoUrl,
+                stars = existingServer.stars,
+                category = existingServer.category,
+                requiresApiKey = existingServer.requiresApiKey,
+                author = existingServer.author,
+                isVerified = existingServer.isVerified,
+                isInstalled = true,
+                version = existingServer.version,
+                updatedAt = existingServer.updatedAt,
+                longDescription = existingServer.longDescription,
+                repoUrl = existingServer.repoUrl,
+                type = existingServer.type,
+                host = existingServer.host,
+                port = existingServer.port
             )
         }
 
         val displayName = getPluginDisplayName(pluginId)
-        val pluginInfo = mcpRepository.getInstalledPluginInfo(pluginId)
 
         return com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer(
                 id = pluginId,
@@ -204,7 +217,10 @@ fun MCPConfigScreen() {
                 updatedAt = "",
                 longDescription = pluginInfo?.getLongDescription()
                                 ?: (pluginInfo?.getOriginalDescription() ?: "本地安装的插件"),
-                repoUrl = pluginInfo?.getRepoUrl() ?: ""
+                repoUrl = pluginInfo?.getRepoUrl() ?: "",
+                type = pluginInfo?.getType() ?: "local",
+                host = pluginInfo?.getHost(),
+                port = pluginInfo?.getPort()
         )
     }
 
@@ -338,6 +354,26 @@ fun MCPConfigScreen() {
             }
         }
     }
+
+    // 新增：远程服务编辑对话框
+    if (showRemoteEditDialog && editingRemoteServer != null) {
+        RemoteServerEditDialog(
+            server = editingRemoteServer!!,
+            onDismiss = {
+                showRemoteEditDialog = false
+                editingRemoteServer = null
+            },
+            onSave = { updatedServer ->
+                viewModel.updateRemoteServer(updatedServer)
+                showRemoteEditDialog = false
+                editingRemoteServer = null
+                scope.launch {
+                    snackbarHostState.showSnackbar("远程服务 ${updatedServer.name} 已更新")
+                }
+            }
+        )
+    }
+
 
     // 部署进度对话框
     if (currentDeployingPlugin != null) {
@@ -548,30 +584,30 @@ fun MCPConfigScreen() {
                                 }
                             } else {
                                 // 本地插件走安装流程
-                                val mcpServer = com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer(
-                                    id = server.id,
-                                    name = server.name,
-                                    description = server.description,
-                                    logoUrl = server.logoUrl,
-                                    stars = server.stars,
-                                    category = server.category,
-                                    requiresApiKey = server.requiresApiKey,
-                                    author = server.author,
-                                    isVerified = server.isVerified,
-                                    isInstalled = server.isInstalled,
-                                    version = server.version,
-                                    updatedAt = server.updatedAt,
-                                    longDescription = server.longDescription,
+                            val mcpServer = com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer(
+                                id = server.id,
+                                name = server.name,
+                                description = server.description,
+                                logoUrl = server.logoUrl,
+                                stars = server.stars,
+                                category = server.category,
+                                requiresApiKey = server.requiresApiKey,
+                                author = server.author,
+                                isVerified = server.isVerified,
+                                isInstalled = server.isInstalled,
+                                version = server.version,
+                                updatedAt = server.updatedAt,
+                                longDescription = server.longDescription,
                                     repoUrl = server.repoUrl,
                                     type = server.type,
                                     host = server.host,
                                     port = server.port
-                                )
-
-                                if (importTabIndex == 0) {
-                                    viewModel.installServer(mcpServer)
-                                } else {
-                                    viewModel.installServerFromZip(mcpServer, zipFilePath)
+                            )
+                            
+                            if (importTabIndex == 0) {
+                                viewModel.installServer(mcpServer)
+                            } else {
+                                viewModel.installServerFromZip(mcpServer, zipFilePath)
                                 }
                             }
                             
@@ -730,6 +766,11 @@ fun MCPConfigScreen() {
                         modifier = Modifier.fillMaxSize()
                 ) {
                     items(installedPlugins.toList()) { pluginId ->
+                        val pluginInfo = remember(pluginId) {
+                            mcpRepository.getInstalledPluginInfo(pluginId)
+                        }
+                        val isRemote = pluginInfo?.getType() == "remote"
+
                         // 获取插件部署成功状态
                         val deploySuccessState =
                                 mcpConfigPreferences
@@ -752,6 +793,7 @@ fun MCPConfigScreen() {
                                 pluginId = pluginId,
                                 displayName = getPluginDisplayName(pluginId),
                                 isOfficial = pluginId.startsWith("official_"),
+                                isRemote = isRemote, // 传递插件类型
                                 onClick = {
                                     selectedPluginId = pluginId
                                     pluginConfigJson = mcpLocalServer.getPluginConfig(pluginId)
@@ -760,6 +802,32 @@ fun MCPConfigScreen() {
                                 onDeploy = {
                                     pluginToDeploy = pluginId
                                     showConfirmDialog = true // 显示确认对话框而不是直接进入命令编辑
+                                },
+                                onEdit = {
+                                    // 设置要编辑的服务器并显示对话框
+                                    val serverToEdit = getPluginAsServer(pluginId)
+                                    if(serverToEdit != null){
+                                        editingRemoteServer = com.ai.assistance.operit.data.mcp.MCPServer(
+                                            id = serverToEdit.id,
+                                            name = serverToEdit.name,
+                                            description = serverToEdit.description,
+                                            logoUrl = serverToEdit.logoUrl,
+                                            stars = serverToEdit.stars,
+                                            category = serverToEdit.category,
+                                            requiresApiKey = serverToEdit.requiresApiKey,
+                                            author = serverToEdit.author,
+                                            isVerified = serverToEdit.isVerified,
+                                            isInstalled = serverToEdit.isInstalled,
+                                            version = serverToEdit.version,
+                                            updatedAt = serverToEdit.updatedAt,
+                                            longDescription = serverToEdit.longDescription,
+                                            repoUrl = serverToEdit.repoUrl,
+                                            type = serverToEdit.type,
+                                            host = serverToEdit.host,
+                                            port = serverToEdit.port
+                                        )
+                                        showRemoteEditDialog = true
+                                    }
                                 },
                                 isEnabled = pluginEnabledState.value,
                                 onEnabledChange = { isChecked ->
@@ -783,8 +851,10 @@ private fun PluginListItem(
         pluginId: String,
         displayName: String,
         isOfficial: Boolean,
+        isRemote: Boolean, // 新增参数
         onClick: () -> Unit,
         onDeploy: () -> Unit,
+        onEdit: () -> Unit, // 新增回调
         isEnabled: Boolean,
         onEnabledChange: (Boolean) -> Unit,
         isDeployed: Boolean = false,
@@ -832,7 +902,7 @@ private fun PluginListItem(
             }
             
             // 添加部署状态指示徽章 - 右下角
-            if (isDeployed) {
+            if (isDeployed && !isRemote) {
                 Box(
                         modifier =
                                 Modifier.size(10.dp)
@@ -870,7 +940,7 @@ private fun PluginListItem(
                     )
 
                     // 显示最后部署时间
-                    if (lastDeployTime > 0) {
+                    if (lastDeployTime > 0 && !isRemote) {
                         Spacer(modifier = Modifier.width(8.dp))
                         val dateStr =
                                 java.text.SimpleDateFormat(
@@ -888,7 +958,7 @@ private fun PluginListItem(
                         )
                     }
                 }
-            } else if (lastDeployTime > 0) {
+            } else if (lastDeployTime > 0 && !isRemote) {
                 // 非官方插件也显示最后部署时间
                 val dateStr =
                         java.text.SimpleDateFormat(
@@ -904,18 +974,28 @@ private fun PluginListItem(
             }
         }
 
-        // 部署按钮 - 根据部署状态变化样式
-        TextButton(
-                onClick = onDeploy,
+        // 部署/编辑按钮 - 根据插件类型变化
+        if (isRemote) {
+            TextButton(
+                onClick = onEdit,
                 contentPadding = PaddingValues(horizontal = 12.dp),
-                modifier = Modifier.height(36.dp),
-                colors =
-                        ButtonDefaults.textButtonColors(
-                                contentColor =
-                                        if (isDeployed) MaterialTheme.colorScheme.tertiary
-                                        else MaterialTheme.colorScheme.primary
-                        )
-        ) { Text(if (isDeployed) "重新部署" else "部署") }
+                modifier = Modifier.height(36.dp)
+            ) {
+                Text("编辑")
+            }
+        } else {
+            TextButton(
+                    onClick = onDeploy,
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    modifier = Modifier.height(36.dp),
+                    colors =
+                            ButtonDefaults.textButtonColors(
+                                    contentColor =
+                                            if (isDeployed) MaterialTheme.colorScheme.tertiary
+                                            else MaterialTheme.colorScheme.primary
+                            )
+            ) { Text(if (isDeployed) "重新部署" else "部署") }
+        }
 
         Spacer(modifier = Modifier.width(4.dp))
 
@@ -937,4 +1017,84 @@ private fun PluginListItem(
             )
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RemoteServerEditDialog(
+    server: com.ai.assistance.operit.data.mcp.MCPServer,
+    onDismiss: () -> Unit,
+    onSave: (com.ai.assistance.operit.data.mcp.MCPServer) -> Unit
+) {
+    var name by remember { mutableStateOf(server.name) }
+    var description by remember { mutableStateOf(server.description) }
+    var author by remember { mutableStateOf(server.author) }
+    var host by remember { mutableStateOf(server.host ?: "") }
+    var port by remember { mutableStateOf(server.port?.toString() ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("编辑远程服务") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("名称") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("描述") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = author,
+                    onValueChange = { author = it },
+                    label = { Text("作者") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = host,
+                    onValueChange = { host = it },
+                    label = { Text("主机地址") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
+                )
+                OutlinedTextField(
+                    value = port,
+                    onValueChange = { port = it.filter { char -> char.isDigit() } },
+                    label = { Text("端口") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val updatedServer = server.copy(
+                        name = name,
+                        description = description,
+                        author = author,
+                        host = host,
+                        port = port.toIntOrNull()
+                    )
+                    onSave(updatedServer)
+                },
+                enabled = name.isNotBlank() && host.isNotBlank() && port.isNotBlank()
+            ) {
+                Text("保存")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
 }

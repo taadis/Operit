@@ -20,7 +20,8 @@ fun BubbleStyleChatMessage(
     userTextColor: Color,
     aiTextColor: Color,
     systemMessageColor: Color,
-    systemTextColor: Color
+    systemTextColor: Color,
+    isHidden: Boolean = false
 ) {
     when (message.sender) {
         "user" -> {
@@ -34,7 +35,8 @@ fun BubbleStyleChatMessage(
             BubbleAiMessageComposable(
                 message = message,
                 backgroundColor = aiMessageColor,
-                textColor = aiTextColor
+                textColor = aiTextColor,
+                isHidden = isHidden
             )
         }
         "system" -> {

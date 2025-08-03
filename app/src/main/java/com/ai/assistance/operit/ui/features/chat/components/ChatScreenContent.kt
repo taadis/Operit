@@ -345,6 +345,38 @@ fun ChatScreenContent(
                     }
             )
         }
+
+        // 当需要编辑消息时，显示消息编辑器
+        if (editingMessageIndex.value != null) {
+            MessageEditor(
+                editingMessageContent = editingMessageContent,
+                onCancel = {
+                    editingMessageIndex.value = null
+                    editingMessageContent.value = ""
+                },
+                onSave = {
+                    val index = editingMessageIndex.value
+                    if (index != null) {
+                        val editedMessage =
+                            chatHistory[index].copy(
+                                content = editingMessageContent.value
+                            )
+                        actualViewModel.updateMessage(index, editedMessage)
+                    }
+                    editingMessageIndex.value = null
+                    editingMessageContent.value = ""
+                },
+                onResend = {
+                    val index = editingMessageIndex.value
+                    if (index != null) {
+                        actualViewModel.rewindAndResendMessage(index, editingMessageContent.value)
+                    }
+                    editingMessageIndex.value = null
+                    editingMessageContent.value = ""
+                },
+                showResendButton = editingMessageType == "user"
+            )
+        }
     }
 }
 

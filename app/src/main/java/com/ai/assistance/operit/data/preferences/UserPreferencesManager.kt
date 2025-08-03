@@ -128,6 +128,7 @@ class UserPreferencesManager(private val context: Context) {
         private val KEY_AVATAR_CORNER_RADIUS = floatPreferencesKey("avatar_corner_radius")
         private val KEY_ON_COLOR_MODE = stringPreferencesKey("on_color_mode")
         private val KEY_CUSTOM_CHAT_TITLE = stringPreferencesKey("custom_chat_title")
+        private val KEY_SHOW_INPUT_PROCESSING_STATUS = booleanPreferencesKey("show_input_processing_status")
 
 
         const val AVATAR_SHAPE_CIRCLE = "circle"
@@ -351,6 +352,11 @@ class UserPreferencesManager(private val context: Context) {
                 preferences[KEY_CUSTOM_CHAT_TITLE]
             }
 
+    val showInputProcessingStatus: Flow<Boolean> =
+        context.userPreferencesDataStore.data.map { preferences ->
+            preferences[KEY_SHOW_INPUT_PROCESSING_STATUS] ?: true
+        }
+
     // 保存主题设置
     suspend fun saveThemeSettings(
             themeMode: String? = null,
@@ -385,7 +391,8 @@ class UserPreferencesManager(private val context: Context) {
             avatarShape: String? = null,
             avatarCornerRadius: Float? = null,
             onColorMode: String? = null,
-            customChatTitle: String? = null
+            customChatTitle: String? = null,
+            showInputProcessingStatus: Boolean? = null
     ) {
         context.userPreferencesDataStore.edit { preferences ->
             themeMode?.let { preferences[THEME_MODE] = it }
@@ -425,6 +432,7 @@ class UserPreferencesManager(private val context: Context) {
             avatarCornerRadius?.let { preferences[KEY_AVATAR_CORNER_RADIUS] = it }
             onColorMode?.let { preferences[KEY_ON_COLOR_MODE] = it }
             customChatTitle?.let { preferences[KEY_CUSTOM_CHAT_TITLE] = it }
+            showInputProcessingStatus?.let { preferences[KEY_SHOW_INPUT_PROCESSING_STATUS] = it }
         }
     }
 
@@ -464,6 +472,7 @@ class UserPreferencesManager(private val context: Context) {
             preferences.remove(KEY_AVATAR_CORNER_RADIUS)
             preferences.remove(KEY_ON_COLOR_MODE)
             preferences.remove(KEY_CUSTOM_CHAT_TITLE)
+            preferences.remove(KEY_SHOW_INPUT_PROCESSING_STATUS)
         }
     }
 

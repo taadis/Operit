@@ -67,7 +67,8 @@ fun ChatInputSection(
     chatInputTransparent: Boolean = false,
     modifier: Modifier = Modifier,
     externalAttachmentPanelState: Boolean? = null,
-    onAttachmentPanelStateChange: ((Boolean) -> Unit)? = null
+    onAttachmentPanelStateChange: ((Boolean) -> Unit)? = null,
+    showInputProcessingStatus: Boolean = true
 ) {
     val modernTextStyle = TextStyle(fontSize = 13.sp, lineHeight = 16.sp)
     val scope = rememberCoroutineScope()
@@ -140,7 +141,7 @@ fun ChatInputSection(
     Surface(color = surfaceColor) {
         Column {
             // Input processing indicator
-            SimpleAnimatedVisibility(visible = inputState !is InputProcessingState.Idle && inputState !is InputProcessingState.Completed) {
+            SimpleAnimatedVisibility(visible = showInputProcessingStatus && inputState !is InputProcessingState.Idle && inputState !is InputProcessingState.Completed) {
                 val (progressColor, message) = when (inputState) {
                     is InputProcessingState.Connecting -> MaterialTheme.colorScheme.tertiary to inputState.message
                     is InputProcessingState.ExecutingTool -> MaterialTheme.colorScheme.secondary to "正在执行工具: ${inputState.toolName}"

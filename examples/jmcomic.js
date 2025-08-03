@@ -154,6 +154,31 @@ const jmcomic = (function () {
     function basename(filePath) {
         return filePath.substring(filePath.lastIndexOf('/') + 1);
     }
+    async function runTasksWithConcurrency(tasks, limit) {
+        const results = new Array(tasks.length);
+        let currentIndex = 0;
+        async function runner() {
+            while (currentIndex < tasks.length) {
+                const taskIndex = currentIndex++;
+                if (taskIndex < tasks.length) {
+                    try {
+                        results[taskIndex] = await tasks[taskIndex]();
+                    }
+                    catch (e) {
+                        console.error(`并发任务 ${taskIndex} 执行失败: ${e.message}`);
+                        results[taskIndex] = e;
+                    }
+                }
+            }
+        }
+        const runners = [];
+        const numRunners = Math.min(limit, tasks.length);
+        for (let i = 0; i < numRunners; i++) {
+            runners.push(runner());
+        }
+        await Promise.all(runners);
+        return results.filter(r => !(r instanceof Error));
+    }
     // endregion
     // region Constants and Classes from jmcomic
     const __version__ = '2.6.4-ts-adapted';
@@ -515,28 +540,45 @@ const jmcomic = (function () {
         async downloadByAlbumDetail(album) {
             const albumDir = this.option.dirRule.decideAlbumRootDir(album);
             await ensureDirExists(albumDir);
-            for (const episode of album.episodeList) {
-                const photo = await this.client.getPhotoDetail(episode.id);
-                await this.downloadPhotoImages(photo, albumDir, album.id);
-            }
+            console.log(`[专辑: ${album.title}] 发现 ${album.episodeList.length} 个章节, 开始下载...`);
+            const chapterConcurrency = 5;
+            const tasks = album.episodeList.map((episode, i) => async () => {
+                console.log(`  [章节 ${i + 1}/${album.episodeList.length}] 开始下载: ${episode.title} (${episode.id})`);
+                try {
+                    const photo = await this.client.getPhotoDetail(episode.id);
+                    await this.downloadPhotoImages(photo, albumDir, album.id);
+                    console.log(`  [章节 ${i + 1}/${album.episodeList.length}] 下载完成: ${episode.title}`);
+                }
+                catch (e) {
+                    console.error(`  [章节 ${i + 1}/${album.episodeList.length}] 下载失败: ${episode.title}, 错误: ${e.message}`);
+                }
+            });
+            await runTasksWithConcurrency(tasks, chapterConcurrency);
         }
         async downloadPhotoImages(photo, albumDir, albumId) {
             if (!photo.pageArr || photo.pageArr.length === 0)
                 return;
-            for (let i = 0; i < photo.pageArr.length; i++) {
-                const imageName = photo.pageArr[i];
-                // 原始文件名，例如：00001.webp
-                const originalFileName = `${(i + 1).toString().padStart(5, '0')}.${this.getFileExtension(imageName)}`;
-                // 最终保存的文件名，强制使用 .jpg 后缀
-                const finalFileName = `${(i + 1).toString().padStart(5, '0')}.jpg`;
-                const filePath = joinPath(albumDir, finalFileName);
-                const fileExists = await Tools.Files.exists(filePath);
-                if (fileExists.exists)
-                    continue;
-                const imageUrl = this.buildImageUrl(photo, imageName);
-                // 传递最终的文件路径给下载和解码函数
-                await this.client.downloadImage(imageUrl, filePath, photo.scrambleId, photo.id);
-            }
+            console.log(`    [图片集: ${photo.title}] 发现 ${photo.pageArr.length} 张图片, 开始下载...`);
+            const concurrencyLimit = 10;
+            const tasks = photo.pageArr.map((imageName, i) => {
+                return async () => {
+                    const finalFileName = `${(i + 1).toString().padStart(5, '0')}.jpg`;
+                    const filePath = joinPath(albumDir, finalFileName);
+                    const fileExists = await Tools.Files.exists(filePath);
+                    if (fileExists.exists) {
+                        return;
+                    }
+                    const imageUrl = this.buildImageUrl(photo, imageName);
+                    try {
+                        await this.client.downloadImage(imageUrl, filePath, photo.scrambleId, photo.id);
+                    }
+                    catch (e) {
+                        console.error(`      [图片下载失败] ${finalFileName} from ${photo.title}: ${e.message}`);
+                    }
+                };
+            });
+            await runTasksWithConcurrency(tasks, concurrencyLimit);
+            console.log(`    [图片集: ${photo.title}] 所有图片下载任务已处理。`);
         }
         getFileExtension(filename) {
             const dotIndex = filename.lastIndexOf('.');
@@ -591,19 +633,19 @@ const jmcomic = (function () {
         async batchDownload(albumIds) {
             const results = [];
             console.log(`📦 开始批量下载 ${albumIds.length} 个本子`);
-            for (let i = 0; i < albumIds.length; i++) {
-                const albumId = albumIds[i];
-                console.log(`\n[${i + 1}/${albumIds.length}] 处理本子: ${albumId}`);
+            const concurrencyLimit = 3; // 限制并发下载的漫画数量
+            const tasks = albumIds.map((albumId, i) => async () => {
+                console.log(`\n[${i + 1}/${albumIds.length}] 开始处理本子: ${albumId}`);
                 const result = await this.downloadAlbum(albumId);
-                results.push(result);
                 if (result.success) {
-                    console.log(`✅ 下载成功: ${result.title}`);
+                    console.log(`✅ [${i + 1}/${albumIds.length}] 下载成功: ${result.title}`);
                 }
                 else {
-                    console.log(`❌ 下载失败: ${result.error || 'Unknown error'}`);
+                    console.log(`❌ [${i + 1}/${albumIds.length}] 下载失败: ${albumId}, ${result.error || 'Unknown error'}`);
                 }
-            }
-            return results;
+                return result;
+            });
+            return await runTasksWithConcurrency(tasks, concurrencyLimit);
         }
         async _checkDownloadedFiles(title) {
             const albumDir = this.option.dirRule.decideAlbumRootDir({ title });

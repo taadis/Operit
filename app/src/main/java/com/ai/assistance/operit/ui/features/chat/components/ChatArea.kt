@@ -66,6 +66,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.draw.alpha
 import com.ai.assistance.operit.ui.features.chat.components.style.cursor.CursorStyleChatMessage
 import com.ai.assistance.operit.ui.features.chat.components.style.bubble.BubbleStyleChatMessage
 
@@ -116,13 +117,21 @@ fun ChatArea(
         // 改用普通Column替代LazyColumn，避免复杂的回收逻辑带来的性能问题
         Column(
             modifier =
-                Modifier.weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .verticalScroll(scrollState) // 使用从外部传入的scrollState
-                    .background(Color.Transparent)
-                    .padding(top = topPadding),
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .verticalScroll(scrollState) // 使用从外部传入的scrollState
+                .background(Color.Transparent)
+                .padding(top = topPadding),
         ) {
+            val lastMessage = chatHistory.lastOrNull()
+            // 判断是否应该显示加载指示器，并且在 Bubble 模式下隐藏最后一条空消息
+            val showLoadingIndicator =
+                isLoading && (lastMessage?.sender == "user" || (lastMessage?.sender == "ai" && lastMessage.content.isBlank()))
+            val shouldHideLastAiMessage =
+                showLoadingIndicator && chatStyle == ChatStyle.BUBBLE && lastMessage?.sender == "ai"
+
             val messagesCount = chatHistory.size
             val maxVisibleIndex = messagesCount - 1
             val minVisibleIndex =
@@ -134,9 +143,10 @@ fun ChatArea(
                 Text(
                     text = "加载更多历史消息...",
                     modifier =
-                        Modifier.fillMaxWidth()
-                            .clickable { currentDepth.value += 1 }
-                            .padding(vertical = 16.dp),
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { currentDepth.value += 1 }
+                        .padding(vertical = 16.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.Gray,
                     textAlign = TextAlign.Center,
@@ -145,10 +155,12 @@ fun ChatArea(
             }
 
             // 根据当前深度筛选显示的消息
-            chatHistory.subList(minVisibleIndex, messagesCount).forEachIndexed {
-                    relativeIndex,
-                    message ->
+            chatHistory.subList(minVisibleIndex, messagesCount).forEachIndexed { relativeIndex,
+                                                                                 message ->
                 val actualIndex = minVisibleIndex + relativeIndex
+                val isLastAiMessage = actualIndex == messagesCount - 1 && message.sender == "ai"
+                val shouldHide = shouldHideLastAiMessage && isLastAiMessage
+
                 // 使用key组合函数为每个消息项设置单独的重组作用域
                 key(message.timestamp) {
                     MessageItem(
@@ -166,7 +178,8 @@ fun ChatArea(
                         onCopyMessage = onCopyMessage,
                         onDeleteMessage = onDeleteMessage,
                         onDeleteMessagesFrom = onDeleteMessagesFrom,
-                        chatStyle = chatStyle // 传递风格
+                        chatStyle = chatStyle, // 传递风格
+                        isHidden = shouldHide // 新增参数控制隐藏
                     )
                 }
 
@@ -174,15 +187,29 @@ fun ChatArea(
             }
 
             // 当AI正在响应但尚未输出任何文本时，显示加载指示器
-            val lastMessage = chatHistory.lastOrNull { it.sender != "think" }
-            if (isLoading &&
-                (lastMessage?.sender == "user" ||
-                    (lastMessage?.sender == "ai" && lastMessage.content.isBlank()))
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 0.dp)) {
-                    // 加载指示器放在左侧，与标签对齐
-                    Box(modifier = Modifier.padding(start = 16.dp)) {
-                        LoadingDotsIndicator(aiTextColor)
+            if (showLoadingIndicator) {
+                when (chatStyle) {
+                    ChatStyle.BUBBLE -> {
+                        Column(modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 0.dp)
+                            .offset(y = (-24).dp)) {
+                            // 加载指示器放在左侧，与标签对齐
+                            Box(modifier = Modifier.padding(start = 16.dp)) {
+                                LoadingDotsIndicator(aiTextColor)
+                            }
+                        }
+                    }
+
+                    ChatStyle.CURSOR -> {
+                        Column(modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 0.dp)) {
+                            // 加载指示器放在左侧，与标签对齐
+                            Box(modifier = Modifier.padding(start = 16.dp)) {
+                                LoadingDotsIndicator(aiTextColor)
+                            }
+                        }
                     }
                 }
             }
@@ -211,7 +238,8 @@ private fun MessageItem(
     onCopyMessage: ((ChatMessage) -> Unit)?,
     onDeleteMessage: ((Int) -> Unit)?,
     onDeleteMessagesFrom: ((Int) -> Unit)?,
-    chatStyle: ChatStyle // 新增参数
+    chatStyle: ChatStyle, // 新增参数
+    isHidden: Boolean = false // 新增参数控制隐藏
 ) {
     val context = LocalContext.current
     var showContextMenu by remember { mutableStateOf(false) }
@@ -222,27 +250,30 @@ private fun MessageItem(
 
     Box(
         modifier =
-            Modifier.combinedClickable(
+        Modifier
+            .alpha(if (isHidden) 0f else 1f)
+            .combinedClickable(
                 onClick = {},
                 onLongClick = { if (isActionable) showContextMenu = true },
             ),
     ) {
         when (chatStyle) {
             ChatStyle.CURSOR -> {
-        CursorStyleChatMessage(
-            message = message,
-            userMessageColor = userMessageColor,
-            aiMessageColor = aiMessageColor,
-            userTextColor = userTextColor,
-            aiTextColor = aiTextColor,
-            systemMessageColor = systemMessageColor,
-            systemTextColor = systemTextColor,
-            thinkingBackgroundColor = thinkingBackgroundColor,
-            thinkingTextColor = thinkingTextColor,
-            supportToolMarkup = true,
-            initialThinkingExpanded = true,
-        )
+                CursorStyleChatMessage(
+                    message = message,
+                    userMessageColor = userMessageColor,
+                    aiMessageColor = aiMessageColor,
+                    userTextColor = userTextColor,
+                    aiTextColor = aiTextColor,
+                    systemMessageColor = systemMessageColor,
+                    systemTextColor = systemTextColor,
+                    thinkingBackgroundColor = thinkingBackgroundColor,
+                    thinkingTextColor = thinkingTextColor,
+                    supportToolMarkup = true,
+                    initialThinkingExpanded = true,
+                )
             }
+
             ChatStyle.BUBBLE -> {
                 BubbleStyleChatMessage(
                     message = message,
@@ -252,6 +283,7 @@ private fun MessageItem(
                     aiTextColor = aiTextColor,
                     systemMessageColor = systemMessageColor,
                     systemTextColor = systemTextColor,
+                    isHidden = isHidden
                 )
             }
         }
@@ -491,36 +523,37 @@ private fun LoadingDotsIndicator(textColor: Color) {
 
         (0..2).forEach { index ->
             val offsetY by
-                infiniteTransition.animateFloat(
-                    initialValue = 0f,
-                    targetValue = jumpHeight,
-                    animationSpec =
-                        infiniteRepeatable(
-                            animation =
-                                keyframes {
-                                    durationMillis = 600
-                                    0f at 0
-                                    jumpHeight * 0.4f at 100
-                                    jumpHeight * 0.8f at 200
-                                    jumpHeight at 300
-                                    jumpHeight * 0.8f at 400
-                                    jumpHeight * 0.4f at 500
-                                    0f at 600
-                                },
-                            repeatMode = RepeatMode.Restart,
-                            initialStartOffset = StartOffset(index * animationDelay),
-                        ),
-                    label = "",
-                )
+            infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = jumpHeight,
+                animationSpec =
+                infiniteRepeatable(
+                    animation =
+                    keyframes {
+                        durationMillis = 600
+                        0f at 0
+                        jumpHeight * 0.4f at 100
+                        jumpHeight * 0.8f at 200
+                        jumpHeight at 300
+                        jumpHeight * 0.8f at 400
+                        jumpHeight * 0.4f at 500
+                        0f at 600
+                    },
+                    repeatMode = RepeatMode.Restart,
+                    initialStartOffset = StartOffset(index * animationDelay),
+                ),
+                label = "",
+            )
 
             Box(
                 modifier =
-                    Modifier.size(6.dp)
-                        .offset(y = offsetY.dp)
-                        .background(
-                            color = textColor.copy(alpha = 0.6f),
-                            shape = CircleShape,
-                        ),
+                Modifier
+                    .size(6.dp)
+                    .offset(y = offsetY.dp)
+                    .background(
+                        color = textColor.copy(alpha = 0.6f),
+                        shape = CircleShape,
+                    ),
             )
         }
     }

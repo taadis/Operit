@@ -586,10 +586,38 @@ class MCPRepository(private val context: Context) {
         try {
             // Get current installed plugin IDs
             val installedIds = pluginManager.installedPluginIds.value
+            val remoteServers = pluginManager.getRemoteServers()
+
+            // Create a map of existing servers for quick lookup
+            val serverMap = _mcpServers.value.associateBy { it.id }.toMutableMap()
+
+            // Add or update remote servers in the map
+            remoteServers.forEach { remoteServer ->
+                serverMap[remoteServer.id] = UIMCPServer(
+                    id = remoteServer.id,
+                    name = remoteServer.name,
+                    description = remoteServer.description,
+                    logoUrl = remoteServer.logoUrl,
+                    stars = remoteServer.stars,
+                    category = remoteServer.category,
+                    requiresApiKey = remoteServer.requiresApiKey,
+                    author = remoteServer.author,
+                    isVerified = remoteServer.isVerified,
+                    isInstalled = true, // Remote servers are always "installed"
+                    version = remoteServer.version,
+                    updatedAt = remoteServer.updatedAt,
+                    longDescription = remoteServer.longDescription,
+                    repoUrl = remoteServer.repoUrl,
+                    type = remoteServer.type,
+                    host = remoteServer.host,
+                    port = remoteServer.port
+                )
+            }
+
 
             // Update in-memory installation status
             val updatedServers =
-                    _mcpServers.value.map { server ->
+                    serverMap.values.map { server ->
                         val isInstalled = installedIds.contains(server.id)
 
                         // Check installation status changed
@@ -634,7 +662,7 @@ class MCPRepository(private val context: Context) {
                         }
                     }
 
-            _mcpServers.value = updatedServers
+            _mcpServers.value = updatedServers.sortedBy { it.name }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update installation status", e)
         }
@@ -936,31 +964,6 @@ class MCPRepository(private val context: Context) {
                 return@withContext
             }
 
-            // Add to the main list if not already present
-            if (_mcpServers.value.none { it.id == server.id }) {
-                val uiServer = UIMCPServer(
-                    id = server.id,
-                    name = server.name,
-                    description = server.description,
-                    logoUrl = server.logoUrl,
-                    stars = server.stars,
-                    category = server.category,
-                    requiresApiKey = server.requiresApiKey,
-                    author = server.author,
-                    isVerified = server.isVerified,
-                    isInstalled = server.isInstalled,
-                    version = server.version,
-                    updatedAt = server.updatedAt,
-                    longDescription = server.longDescription,
-                    repoUrl = server.repoUrl,
-                    type = server.type,
-                    host = server.host,
-                    port = server.port
-                )
-                _mcpServers.value = _mcpServers.value + uiServer
-                loadedServerIds.add(server.id)
-            }
-            
             // Use the plugin manager to "install" the remote server, which just saves its metadata
             pluginManager.installRemotePlugin(server)
             
@@ -969,10 +972,29 @@ class MCPRepository(private val context: Context) {
         }
     }
 
-    // Initialize method to be called at app startup
+    /**
+     * Updates an existing remote server's metadata.
+     *
+     * @param server The remote server with updated information.
+     */
+    suspend fun updateRemoteServer(server: MCPServer) {
+        withContext(Dispatchers.IO) {
+            if (server.type != "remote") {
+                Log.e(TAG, "updateRemoteServer called with a non-remote server: ${server.id}")
+                return@withContext
+            }
+            pluginManager.updateRemotePlugin(server)
+            syncInstalledStatus()
+        }
+    }
+
+    /**
+     * Load more servers when user scrolls to bottom This handles both official and third-party
+     * servers in the correct order
+     */
     suspend fun initialize() {
         withContext(Dispatchers.IO) {
-            // First scan for locally installed plugins
+            // First scan for locally installed plugins, including remote ones
             syncInstalledStatus()
 
             // Then try to load MCP server list from cache

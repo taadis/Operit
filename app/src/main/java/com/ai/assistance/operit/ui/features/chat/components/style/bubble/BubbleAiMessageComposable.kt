@@ -2,6 +2,9 @@ package com.ai.assistance.operit.ui.features.chat.components.style.bubble
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,8 +12,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assistant
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,17 +30,19 @@ import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownRenderer
 import com.ai.assistance.operit.ui.features.chat.components.part.CustomXmlRenderer
 import com.ai.assistance.operit.util.markdown.toCharStream
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.foundation.Image
 import coil.compose.rememberAsyncImagePainter
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.alpha
 
 @Composable
 fun BubbleAiMessageComposable(
     message: ChatMessage,
     backgroundColor: Color,
     textColor: Color,
-    onLinkClick: ((String) -> Unit)? = null
+    onLinkClick: ((String) -> Unit)? = null,
+    isHidden: Boolean = false
 ) {
     val context = LocalContext.current
     val preferencesManager = remember { UserPreferencesManager(context) }
@@ -63,10 +73,24 @@ fun BubbleAiMessageComposable(
         }
     }
 
+    val targetAlpha = if (isHidden) 0f else 1f
+    val targetOffsetY = if (isHidden) 100f else 0f
+
+    val alpha by animateFloatAsState(
+        targetValue = targetAlpha,
+        animationSpec = tween(durationMillis = 300)
+    )
+    val offsetY by animateFloatAsState(
+        targetValue = targetOffsetY,
+        animationSpec = tween(durationMillis = 300)
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .alpha(alpha)
+            .offset(y = offsetY.dp),
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.Top
     ) {
@@ -95,7 +119,8 @@ fun BubbleAiMessageComposable(
         Surface(
             modifier = Modifier
                 .weight(1f, fill = false)
-                .padding(end = 64.dp),
+                .padding(end = 64.dp)
+                .defaultMinSize(minHeight = 44.dp),
             shape = RoundedCornerShape(4.dp, 20.dp, 20.dp, 20.dp),
             color = backgroundColor,
             tonalElevation = 2.dp

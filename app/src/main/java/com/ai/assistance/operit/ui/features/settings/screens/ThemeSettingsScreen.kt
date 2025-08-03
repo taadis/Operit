@@ -156,6 +156,7 @@ fun ThemeSettingsScreen() {
     // Collect new display settings
     val showThinkingProcess = preferencesManager.showThinkingProcess.collectAsState(initial = true).value
     val showStatusTags = preferencesManager.showStatusTags.collectAsState(initial = true).value
+    val showInputProcessingStatus = preferencesManager.showInputProcessingStatus.collectAsState(initial = true).value
 
     // Collect avatar settings
     val userAvatarUri = preferencesManager.customUserAvatarUri.collectAsState(initial = null).value
@@ -226,6 +227,7 @@ fun ThemeSettingsScreen() {
     // New display settings state
     var showThinkingProcessInput by remember { mutableStateOf(showThinkingProcess) }
     var showStatusTagsInput by remember { mutableStateOf(showStatusTags) }
+    var showInputProcessingStatusInput by remember { mutableStateOf(showInputProcessingStatus) }
 
     // Avatar state
     var userAvatarUriInput by remember { mutableStateOf(userAvatarUri) }
@@ -575,6 +577,7 @@ fun ThemeSettingsScreen() {
             chatStyle,
             showThinkingProcess,
             showStatusTags,
+            showInputProcessingStatus,
             userAvatarUri,
             aiAvatarUri,
             avatarShape,
@@ -613,6 +616,7 @@ fun ThemeSettingsScreen() {
         chatStyleInput = chatStyle
         showThinkingProcessInput = showThinkingProcess
         showStatusTagsInput = showStatusTags
+        showInputProcessingStatusInput = showInputProcessingStatus
         userAvatarUriInput = userAvatarUri
         aiAvatarUriInput = aiAvatarUri
         avatarShapeInput = avatarShape
@@ -1368,7 +1372,7 @@ fun ThemeSettingsScreen() {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ChatStyleOption(
-                        title = "Cursor",
+                        title = "命令框",
                         selected = chatStyleInput == UserPreferencesManager.CHAT_STYLE_CURSOR,
                         modifier = Modifier.weight(1f)
                     ) {
@@ -1380,7 +1384,7 @@ fun ThemeSettingsScreen() {
                     }
 
                     ChatStyleOption(
-                        title = "Bubble",
+                        title = "对话框",
                         selected = chatStyleInput == UserPreferencesManager.CHAT_STYLE_BUBBLE,
                         modifier = Modifier.weight(1f)
                     ) {
@@ -1452,6 +1456,34 @@ fun ThemeSettingsScreen() {
                                 showSaveSuccessMessage = true
                             }
                         }
+                    )
+                }
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                // Show input processing status switch
+                Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "显示输入处理状态", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                                text = "在输入框上方显示AI正在处理任务的状态",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                            checked = showInputProcessingStatusInput,
+                            onCheckedChange = {
+                                showInputProcessingStatusInput = it
+                                scope.launch {
+                                    preferencesManager.saveThemeSettings(showInputProcessingStatus = it)
+                                    showSaveSuccessMessage = true
+                                }
+                            }
                     )
                 }
             }
@@ -2140,6 +2172,7 @@ fun ThemeSettingsScreen() {
                         chatStyleInput = UserPreferencesManager.CHAT_STYLE_CURSOR
                         showThinkingProcessInput = true
                         showStatusTagsInput = true
+                        showInputProcessingStatusInput = true
                         userAvatarUriInput = null
                         aiAvatarUriInput = null
                         avatarShapeInput = UserPreferencesManager.AVATAR_SHAPE_CIRCLE

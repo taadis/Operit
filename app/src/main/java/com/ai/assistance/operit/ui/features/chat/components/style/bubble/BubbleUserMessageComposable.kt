@@ -61,7 +61,8 @@ fun BubbleUserMessageComposable(
         Surface(
             modifier = Modifier
                 .weight(1f, fill = false)
-                .padding(start = 64.dp),
+                .padding(start = 64.dp)
+                .defaultMinSize(minHeight = 44.dp),
             shape = RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp),
             color = backgroundColor,
             tonalElevation = 2.dp

@@ -143,12 +143,23 @@ class MCPStarter(private val context: Context) {
     suspend fun startPlugin(pluginId: String, statusCallback: (StartStatus) -> Unit): Boolean {
         try {
             val mcpConfigPreferences = MCPConfigPreferences(context)
+            val mcpRepository = MCPRepository(context)
 
-            // Check if plugin is deployed
-            val isDeployed = mcpConfigPreferences.getDeploySuccessFlow(pluginId).first()
-            if (!isDeployed) {
-                statusCallback(StartStatus.Error("Plugin not deployed: $pluginId"))
+            val pluginInfo = mcpRepository.getInstalledPluginInfo(pluginId)
+            if (pluginInfo == null) {
+                statusCallback(StartStatus.Error("Plugin info not found: $pluginId"))
                 return false
+            }
+
+            val serviceType = pluginInfo.getType() ?: "local"
+
+            // For local plugins, check if they are deployed
+            if (serviceType == "local") {
+                val isDeployed = mcpConfigPreferences.getDeploySuccessFlow(pluginId).first()
+                if (!isDeployed) {
+                    statusCallback(StartStatus.Error("Plugin not deployed: $pluginId"))
+                    return false
+                }
             }
 
             // Check if plugin is enabled by the user
@@ -160,14 +171,6 @@ class MCPStarter(private val context: Context) {
 
             statusCallback(StartStatus.InProgress("Starting plugin: $pluginId"))
 
-            val mcpRepository = MCPRepository(context)
-            val pluginInfo = mcpRepository.getInstalledPluginInfo(pluginId)
-            if (pluginInfo == null) {
-                statusCallback(StartStatus.Error("Plugin info not found: $pluginId"))
-                return false
-            }
-
-            val serviceType = pluginInfo.getType() ?: "local"
             val serverName = pluginInfo.getOriginalName()?.replace(" ", "_")?.lowercase() ?: pluginId.split("/").last().lowercase()
 
             // Handle remote services differently
@@ -380,27 +383,36 @@ class MCPStarter(private val context: Context) {
                 val mcpRepository = MCPRepository(context)
                 val mcpConfigPreferences = MCPConfigPreferences(context)
 
-                // Get deployed plugins
+                // Get plugins to start: enabled remote plugins, or enabled and deployed local plugins
                 val pluginList = mcpRepository.installedPluginIds.first()
-                val deployedPlugins =
-                        pluginList.filter {
-                            mcpConfigPreferences.getDeploySuccessFlow(it).first() &&
-                                    mcpConfigPreferences.getPluginEnabledFlow(it).first()
+                val pluginsToStart =
+                        pluginList.filter { pluginId ->
+                            val isEnabled = mcpConfigPreferences.getPluginEnabledFlow(pluginId).first()
+                            if (!isEnabled) {
+                                false
+                            } else {
+                                val pluginInfo = mcpRepository.getInstalledPluginInfo(pluginId)
+                                when (pluginInfo?.getType()) {
+                                    "remote" -> true // Remote plugins only need to be enabled
+                                    else -> // Local plugins must also be deployed
+                                    mcpConfigPreferences.getDeploySuccessFlow(pluginId).first()
+                                }
+                            }
                         }
 
-                if (deployedPlugins.isEmpty()) {
+                if (pluginsToStart.isEmpty()) {
                     progressListener.onAllPluginsStarted(0, 0, PluginInitStatus.SUCCESS)
                     return@launch
                 }
 
                 // 并行启动所有插件
                 val deferreds =
-                        deployedPlugins.mapIndexed { index, pluginId ->
+                        pluginsToStart.mapIndexed { index, pluginId ->
                             starterScope.async {
                                 progressListener.onPluginStarting(
                                         pluginId,
                                         index + 1,
-                                        deployedPlugins.size
+                                        pluginsToStart.size
                                 )
                                 val success =
                                         startPlugin(pluginId) {
@@ -410,7 +422,7 @@ class MCPStarter(private val context: Context) {
                                         pluginId,
                                         success,
                                         index + 1,
-                                        deployedPlugins.size
+                                        pluginsToStart.size
                                 )
                                 success
                             }
@@ -422,7 +434,7 @@ class MCPStarter(private val context: Context) {
                 // Notify all plugins started
                 progressListener.onAllPluginsStarted(
                         successCount,
-                        deployedPlugins.size,
+                        pluginsToStart.size,
                         PluginInitStatus.SUCCESS
                 )
 

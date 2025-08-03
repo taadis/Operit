@@ -35,6 +35,7 @@ class MCPInstaller(private val context: Context) {
         private const val OPERIT_DIR_NAME = "Operit"
         // 元数据文件名
         private const val METADATA_FILE_NAME = "mcp_metadata.json"
+        private const val REMOTE_METADATA_FILE_NAME = "remote-metadata.json"
         // 缓存刷新间隔（毫秒）
         private const val CACHE_REFRESH_INTERVAL = 60000 // 1分钟
     }
@@ -288,6 +289,38 @@ class MCPInstaller(private val context: Context) {
             return@withContext false
         }
     }
+
+    /**
+     * Updates metadata for a remote plugin by overwriting its metadata file.
+     *
+     * @param server The remote server with updated information.
+     * @return true if successful, false otherwise.
+     */
+    suspend fun updateRemotePluginMetadata(server: MCPServer): Boolean = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "Updating remote plugin metadata: ${server.name}")
+
+            val pluginDir = File(pluginsBaseDir, server.id)
+            if (!pluginDir.exists()) {
+                Log.e(TAG, "Cannot update non-existent remote plugin: ${server.id}")
+                return@withContext false
+            }
+
+            // Overwrite metadata with updated information
+            savePluginMetadata(pluginDir, server)
+
+            // Clear cache for this specific plugin to force a reload of the new info
+            pluginInfoCache.remove(server.id)
+            pluginInstalledCache.remove(server.id)
+            
+            Log.d(TAG, "Remote plugin metadata updated successfully for: ${server.id}")
+            return@withContext true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update remote plugin metadata", e)
+            return@withContext false
+        }
+    }
+
 
     /**
      * 从本地ZIP文件安装MCP插件
@@ -919,6 +952,26 @@ class MCPInstaller(private val context: Context) {
             }
 
     /**
+     * Retrieves metadata for a remote plugin.
+     *
+     * @param serverId The ID of the remote server.
+     * @return The MCPServer object or null if not found.
+     */
+    fun getRemotePluginMetadata(serverId: String): MCPServer? {
+        try {
+            val pluginDir = File(pluginsBaseDir, serverId)
+            val metadataFile = File(pluginDir, REMOTE_METADATA_FILE_NAME)
+            if (metadataFile.exists()) {
+                val metadataJson = metadataFile.readText()
+                return Gson().fromJson(metadataJson, MCPServer::class.java)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read remote plugin metadata for $serverId", e)
+        }
+        return null
+    }
+
+    /**
      * 检查插件是否已安装
      *
      * @param serverId 服务器 ID
@@ -936,6 +989,14 @@ class MCPInstaller(private val context: Context) {
         }
 
         val pluginDir = File(pluginsBaseDir, serverId)
+
+        // If it's a remote plugin (has remote-metadata.json), it's considered "installed"
+        val remoteMetadataFile = File(pluginDir, REMOTE_METADATA_FILE_NAME)
+        if (remoteMetadataFile.exists()) {
+            Log.d(TAG, "Plugin $serverId is a remote service and is considered installed.")
+            pluginInstalledCache[serverId] = Pair(true, System.currentTimeMillis())
+            return true
+        }
 
         // 不仅检查目录是否存在，还检查是否包含有效内容
         val isInstalled =
@@ -1040,6 +1101,15 @@ class MCPInstaller(private val context: Context) {
             if (!pluginDir.exists() || !pluginDir.isDirectory) {
                 Log.d(TAG, "插件目录不存在: $serverId")
                 return null
+            }
+
+            // Handle remote plugins first
+            val remoteMetadataFile = File(pluginDir, REMOTE_METADATA_FILE_NAME)
+            if (remoteMetadataFile.exists()) {
+                val metadata = loadPluginMetadata(pluginDir)
+                val info = InstalledPluginInfo(pluginDir.path, metadata)
+                pluginInfoCache[serverId] = CachedPluginInfo(info)
+                return info
             }
 
             // 检查是否为官方插件（官方插件的ID以official_开头）
@@ -1278,6 +1348,13 @@ class MCPInstaller(private val context: Context) {
             metadataFile.writeText(metadataJson)
 
             Log.d(TAG, "保存插件元数据成功: ${server.name}, 作者: ${server.author}, 版本: ${server.version}")
+            // if server is remote, save another metadata file
+            if (server.type == "remote") {
+                val remoteMetadataFile = File(pluginDir, REMOTE_METADATA_FILE_NAME)
+                val remoteMetadataJson = Gson().toJson(server)
+                remoteMetadataFile.writeText(remoteMetadataJson)
+                Log.d(TAG, "保存远程插件元数据成功: ${server.name}")
+            }
             return true
         } catch (e: Exception) {
             Log.e(TAG, "保存插件元数据失败", e)

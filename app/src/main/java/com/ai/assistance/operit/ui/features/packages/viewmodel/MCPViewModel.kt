@@ -126,6 +126,13 @@ class MCPViewModel(private val repository: MCPRepository) : ViewModel() {
         }
     }
 
+    /** Updates a remote server's metadata */
+    fun updateRemoteServer(server: com.ai.assistance.operit.data.mcp.MCPServer) {
+        viewModelScope.launch {
+            repository.updateRemoteServer(server)
+        }
+    }
+
     /** 重置安装状态 */
     fun resetInstallState() {
         _installProgress.value = null

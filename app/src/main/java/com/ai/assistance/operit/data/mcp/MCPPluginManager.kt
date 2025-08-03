@@ -154,6 +154,54 @@ class MCPPluginManager(
     }
 
     /**
+     * Updates an existing remote MCP server by overwriting its metadata file.
+     *
+     * @param server The remote server with updated data.
+     * @return true if the metadata was updated successfully, false otherwise.
+     */
+    suspend fun updateRemotePlugin(server: com.ai.assistance.operit.data.mcp.MCPServer): Boolean {
+        try {
+            if (server.type != "remote") {
+                Log.e(TAG, "updateRemotePlugin called with a non-remote server: ${server.id}")
+                return false
+            }
+            
+            val result = mcpInstaller.updateRemotePluginMetadata(server)
+
+            if (result) {
+                scanInstalledPlugins()
+                Log.d(TAG, "Remote plugin ${server.id} updated successfully.")
+            } else {
+                Log.e(TAG, "Failed to update remote plugin ${server.id}.")
+            }
+            return result
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception while updating remote plugin ${server.id}", e)
+            return false
+        }
+    }
+
+    /**
+     * Retrieves all registered remote servers by scanning for their metadata files.
+     *
+     * @return A list of MCPServer objects representing the remote servers.
+     */
+    fun getRemoteServers(): List<com.ai.assistance.operit.data.mcp.MCPServer> {
+        val remoteServers = mutableListOf<com.ai.assistance.operit.data.mcp.MCPServer>()
+        val pluginsDir = mcpInstaller.pluginsBaseDir
+        if (pluginsDir.exists() && pluginsDir.isDirectory) {
+            pluginsDir.listFiles()?.forEach { pluginDir ->
+                if (pluginDir.isDirectory) {
+                    mcpInstaller.getRemotePluginMetadata(pluginDir.name)?.let {
+                        remoteServers.add(it)
+                    }
+                }
+            }
+        }
+        return remoteServers
+    }
+
+    /**
      * Installs an MCP plugin from a local zip file
      *
      * @param pluginId The ID of the plugin to install
