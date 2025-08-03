@@ -135,6 +135,10 @@ fun MCPConfigScreen() {
     var zipFilePath by remember { mutableStateOf("") }
     var showFilePickerDialog by remember { mutableStateOf(false) }
 
+    // 新增：远程服务相关状态
+    var remoteHostInput by remember { mutableStateOf("") }
+    var remotePortInput by remember { mutableStateOf("") }
+
     // 获取选中插件的配置
     LaunchedEffect(selectedPluginId) {
         selectedPluginId?.let { pluginConfigJson = mcpLocalServer.getPluginConfig(it) }
@@ -380,7 +384,7 @@ fun MCPConfigScreen() {
     if (showImportDialog) {
         AlertDialog(
             onDismissRequest = { showImportDialog = false },
-            title = { Text("导入MCP插件") },
+            title = { Text("导入或连接MCP服务") },
             text = {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -397,6 +401,11 @@ fun MCPConfigScreen() {
                             selected = importTabIndex == 1,
                             onClick = { importTabIndex = 1 },
                             text = { Text("从压缩包导入") }
+                        )
+                        Tab(
+                            selected = importTabIndex == 2,
+                            onClick = { importTabIndex = 2 },
+                            text = { Text("连接远程服务") }
                         )
                     }
                     
@@ -440,10 +449,34 @@ fun MCPConfigScreen() {
                                 }
                             }
                         }
+                        2 -> {
+                            // 连接远程服务
+                            Text("请输入远程服务地址和相关信息", style = MaterialTheme.typography.bodyMedium)
+
+                            OutlinedTextField(
+                                value = remoteHostInput,
+                                onValueChange = { remoteHostInput = it },
+                                label = { Text("主机地址") },
+                                placeholder = { Text("127.0.0.1") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
+                            )
+
+                            OutlinedTextField(
+                                value = remotePortInput,
+                                onValueChange = { remotePortInput = it.filter { char -> char.isDigit() } },
+                                label = { Text("端口") },
+                                placeholder = { Text("8752") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+                        }
                     }
                     
                     Divider(modifier = Modifier.padding(vertical = 4.dp))
-                    Text("插件元数据", style = MaterialTheme.typography.titleSmall)
+                    Text("服务元数据", style = MaterialTheme.typography.titleSmall)
                     
                     OutlinedTextField(
                         value = pluginNameInput,
@@ -476,53 +509,70 @@ fun MCPConfigScreen() {
             confirmButton = {
                 Button(
                     onClick = {
-                        if ((importTabIndex == 0 && repoUrlInput.isNotBlank() && pluginNameInput.isNotBlank()) || 
-                            (importTabIndex == 1 && zipFilePath.isNotBlank() && pluginNameInput.isNotBlank())) {
+                        val isRemote = importTabIndex == 2
+                        val isRepoImport = importTabIndex == 0 && repoUrlInput.isNotBlank() && pluginNameInput.isNotBlank()
+                        val isZipImport = importTabIndex == 1 && zipFilePath.isNotBlank() && pluginNameInput.isNotBlank()
+                        val isRemoteConnect = isRemote && remoteHostInput.isNotBlank() && remotePortInput.isNotBlank() && pluginNameInput.isNotBlank()
+
+                        if (isRepoImport || isZipImport || isRemoteConnect) {
                             isImporting = true
                             // 生成一个唯一的ID
-                            val importId = "import_${java.util.UUID.randomUUID().toString().substring(0, 8)}"
-                            // 创建临时服务器对象
+                            val importId = if (isRemote) "remote_${pluginNameInput.replace(" ", "_").lowercase()}" else "import_${java.util.UUID.randomUUID().toString().substring(0, 8)}"
+                            
+                            // 创建服务器对象
                             val server = com.ai.assistance.operit.data.mcp.MCPServer(
                                 id = importId,
                                 name = pluginNameInput,
                                 description = pluginDescriptionInput,
                                 logoUrl = "",
                                 stars = 0,
-                                category = "导入插件",
+                                category = if(isRemote) "远程服务" else "导入插件",
                                 requiresApiKey = false,
                                 author = pluginAuthorInput,
                                 isVerified = false,
-                                isInstalled = false,
+                                isInstalled = isRemote, // 远程服务视为"已安装"
                                 version = "1.0.0",
                                 updatedAt = "",
                                 longDescription = pluginDescriptionInput,
-                                repoUrl = if (importTabIndex == 0) repoUrlInput else "" // 仅当从仓库导入时使用repoUrl
+                                repoUrl = if (importTabIndex == 0) repoUrlInput else "",
+                                type = if(isRemote) "remote" else "local",
+                                host = if(isRemote) remoteHostInput else null,
+                                port = if(isRemote) remotePortInput.toIntOrNull() else null
                             )
                             
-                            // 开始安装 - 根据导入方式选择不同的安装方法
-                            val mcpServer = com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer(
-                                id = server.id,
-                                name = server.name,
-                                description = server.description,
-                                logoUrl = server.logoUrl,
-                                stars = server.stars,
-                                category = server.category,
-                                requiresApiKey = server.requiresApiKey,
-                                author = server.author,
-                                isVerified = server.isVerified,
-                                isInstalled = server.isInstalled,
-                                version = server.version,
-                                updatedAt = server.updatedAt,
-                                longDescription = server.longDescription,
-                                repoUrl = server.repoUrl
-                            )
-                            
-                            if (importTabIndex == 0) {
-                                // 从仓库导入
-                                viewModel.installServer(mcpServer)
+                            if(isRemote){
+                                // 对于远程服务，直接保存到仓库
+                                viewModel.addRemoteServer(server)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("远程服务 ${server.name} 已添加")
+                                }
                             } else {
-                                // 从压缩包导入
-                                viewModel.installServerFromZip(mcpServer, zipFilePath)
+                                // 本地插件走安装流程
+                                val mcpServer = com.ai.assistance.operit.ui.features.packages.screens.mcp.model.MCPServer(
+                                    id = server.id,
+                                    name = server.name,
+                                    description = server.description,
+                                    logoUrl = server.logoUrl,
+                                    stars = server.stars,
+                                    category = server.category,
+                                    requiresApiKey = server.requiresApiKey,
+                                    author = server.author,
+                                    isVerified = server.isVerified,
+                                    isInstalled = server.isInstalled,
+                                    version = server.version,
+                                    updatedAt = server.updatedAt,
+                                    longDescription = server.longDescription,
+                                    repoUrl = server.repoUrl,
+                                    type = server.type,
+                                    host = server.host,
+                                    port = server.port
+                                )
+
+                                if (importTabIndex == 0) {
+                                    viewModel.installServer(mcpServer)
+                                } else {
+                                    viewModel.installServerFromZip(mcpServer, zipFilePath)
+                                }
                             }
                             
                             // 清空输入并关闭对话框
@@ -531,12 +581,15 @@ fun MCPConfigScreen() {
                             pluginDescriptionInput = ""
                             pluginAuthorInput = ""
                             zipFilePath = ""
+                            remoteHostInput = ""
+                            remotePortInput = ""
                             showImportDialog = false
                             isImporting = false
                         } else {
                             val errorMessage = when (importTabIndex) {
                                 0 -> "请至少输入仓库链接和插件名称"
-                                else -> "请选择压缩包并输入插件名称"
+                                1 -> "请选择压缩包并输入插件名称"
+                                else -> "请完整输入远程服务信息和名称"
                             }
                             scope.launch {
                                 snackbarHostState.showSnackbar(errorMessage)
@@ -545,7 +598,8 @@ fun MCPConfigScreen() {
                     },
                     enabled = !isImporting && 
                              ((importTabIndex == 0 && repoUrlInput.isNotBlank() && pluginNameInput.isNotBlank()) ||
-                              (importTabIndex == 1 && zipFilePath.isNotBlank() && pluginNameInput.isNotBlank()))
+                              (importTabIndex == 1 && zipFilePath.isNotBlank() && pluginNameInput.isNotBlank()) ||
+                              (importTabIndex == 2 && remoteHostInput.isNotBlank() && remotePortInput.isNotBlank() && pluginNameInput.isNotBlank()))
                 ) {
                     if (isImporting) {
                         CircularProgressIndicator(
@@ -554,7 +608,7 @@ fun MCPConfigScreen() {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-                    Text("导入")
+                    Text(if(importTabIndex == 2) "连接" else "导入")
                 }
             },
             dismissButton = {

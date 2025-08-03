@@ -273,7 +273,7 @@ class Response {
         this.statusCode = rawResponse.statusCode;
         this.statusMessage = rawResponse.statusMessage;
         this.headers = this._parseHeaders(rawResponse.headers);
-        this.content = rawResponse.content;
+        this.content = rawResponse.contentBase64 ?? rawResponse.content;
         this.contentType = rawResponse.contentType;
         this.size = rawResponse.size;
     }
@@ -311,6 +311,11 @@ class Response {
 
     // Parse response as text
     async text() {
+        return this.content;
+    }
+
+    // Get response body as Base64 encoded string
+    async bodyAsBase64() {
         return this.content;
     }
 

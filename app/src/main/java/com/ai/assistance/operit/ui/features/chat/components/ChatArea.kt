@@ -229,19 +229,19 @@ private fun MessageItem(
     ) {
         when (chatStyle) {
             ChatStyle.CURSOR -> {
-                CursorStyleChatMessage(
-                    message = message,
-                    userMessageColor = userMessageColor,
-                    aiMessageColor = aiMessageColor,
-                    userTextColor = userTextColor,
-                    aiTextColor = aiTextColor,
-                    systemMessageColor = systemMessageColor,
-                    systemTextColor = systemTextColor,
-                    thinkingBackgroundColor = thinkingBackgroundColor,
-                    thinkingTextColor = thinkingTextColor,
-                    supportToolMarkup = true,
-                    initialThinkingExpanded = true,
-                )
+        CursorStyleChatMessage(
+            message = message,
+            userMessageColor = userMessageColor,
+            aiMessageColor = aiMessageColor,
+            userTextColor = userTextColor,
+            aiTextColor = aiTextColor,
+            systemMessageColor = systemMessageColor,
+            systemTextColor = systemTextColor,
+            thinkingBackgroundColor = thinkingBackgroundColor,
+            thinkingTextColor = thinkingTextColor,
+            supportToolMarkup = true,
+            initialThinkingExpanded = true,
+        )
             }
             ChatStyle.BUBBLE -> {
                 BubbleStyleChatMessage(

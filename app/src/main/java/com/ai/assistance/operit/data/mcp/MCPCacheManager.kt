@@ -47,7 +47,7 @@ class MCPCacheManager(private val context: Context) {
 
     // Marketplace cache file
     private val marketplaceCacheFile by lazy {
-        // Try to use Downloads/Operit/cache directory
+        // Try to use Download/Operit/cache directory
         val cacheFile = File(operitCacheDir, MARKETPLACE_CACHE_FILENAME)
 
         // Make sure the directory is writable, otherwise fall back to app private cache
@@ -68,7 +68,7 @@ class MCPCacheManager(private val context: Context) {
 
     // Installed plugins file
     private val installedPluginsFile by lazy {
-        // Try to use Downloads/Operit directory
+        // Try to use Download/Operit directory
         val pluginsFile = File(operitDir, INSTALLED_PLUGINS_FILENAME)
 
         // Make sure the directory is writable, otherwise fall back to app private directory

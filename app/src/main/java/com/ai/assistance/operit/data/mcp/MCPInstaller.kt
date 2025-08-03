@@ -49,7 +49,11 @@ class MCPInstaller(private val context: Context) {
             @SerializedName("repo_url") val repoUrl: String = "",
             @SerializedName("long_description") val longDescription: String = "",
             @SerializedName("installed_timestamp")
-            val installedTimestamp: Long = System.currentTimeMillis()
+            val installedTimestamp: Long = System.currentTimeMillis(),
+            // Remote server fields
+            @SerializedName("type") val type: String = "local",
+            @SerializedName("host") val host: String? = null,
+            @SerializedName("port") val port: Int? = null
     )
 
     // 增加缓存支持
@@ -252,6 +256,36 @@ class MCPInstaller(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "安装插件失败", e)
             return InstallResult.Error("安装插件时出错: ${e.message}")
+        }
+    }
+
+    /**
+     * Saves metadata for a remote plugin. This doesn't download any files,
+     * it just creates the plugin directory and saves the metadata file.
+     *
+     * @param server The remote server to register.
+     * @return true if successful, false otherwise.
+     */
+    suspend fun installRemotePluginMetadata(server: MCPServer): Boolean = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "Registering remote plugin: ${server.name}")
+
+            val pluginDir = File(pluginsBaseDir, server.id)
+            if (pluginDir.exists()) {
+                Log.d(TAG, "Remote plugin already registered. Overwriting metadata for: ${pluginDir.path}")
+                // No need to delete, just overwrite metadata
+            }
+            pluginDir.mkdirs()
+
+            // Save metadata including remote-specific fields
+            savePluginMetadata(pluginDir, server)
+
+            clearPluginInfoCache()
+            Log.d(TAG, "Remote plugin metadata saved successfully for: ${server.id}")
+            return@withContext true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save remote plugin metadata", e)
+            return@withContext false
         }
     }
 
@@ -1137,6 +1171,21 @@ class MCPInstaller(private val context: Context) {
         fun getLongDescription(): String? {
             return metadata?.longDescription
         }
+
+        /** 获取服务类型，如果元数据不存在则返回null */
+        fun getType(): String? {
+            return metadata?.type
+        }
+
+        /** 获取主机地址，如果元数据不存在则返回null */
+        fun getHost(): String? {
+            return metadata?.host
+        }
+
+        /** 获取端口号，如果元数据不存在则返回null */
+        fun getPort(): Int? {
+            return metadata?.port
+        }
     }
 
     /** 下载官方插件的特定子目录 */
@@ -1218,7 +1267,10 @@ class MCPInstaller(private val context: Context) {
                             author = server.author,
                             version = server.version,
                             repoUrl = server.repoUrl,
-                            longDescription = server.longDescription
+                            longDescription = server.longDescription,
+                            type = server.type,
+                            host = server.host,
+                            port = server.port
                     )
 
             val metadataFile = File(pluginDir, METADATA_FILE_NAME)

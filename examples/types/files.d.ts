@@ -46,6 +46,13 @@ export namespace Files {
     function write(path: string, content: string): Promise<FileOperationData>;
 
     /**
+     * Write base64 encoded content to a binary file
+     * @param path - Path to file
+     * @param base64Content - Base64 encoded content to write
+     */
+    function writeBinary(path: string, base64Content: string): Promise<FileOperationData>;
+
+    /**
      * Delete a file or directory
      * @param path - Path to file or directory
      */

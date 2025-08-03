@@ -17,5 +17,9 @@ data class MCPServer(
     val version: String = "",
     val updatedAt: String = "",
     val longDescription: String = "",
-    val repoUrl: String = ""
+    val repoUrl: String = "",
+    // 新增字段以支持远程服务
+    val type: String = "local", // "local" or "remote"
+    val host: String? = null,
+    val port: Int? = null
 ) 

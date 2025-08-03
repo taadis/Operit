@@ -321,6 +321,20 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             }
     )
 
+    // 写入二进制文件
+    handler.registerTool(
+        name = "write_file_binary",
+        category = ToolCategory.FILE_WRITE,
+        dangerCheck = { true }, // 总是危险操作
+        descriptionGenerator = { tool ->
+            val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+            "将Base64内容写入二进制文件: $path"
+        },
+        executor = { tool ->
+            kotlinx.coroutines.runBlocking { fileSystemTools.writeFileBinary(tool) }
+        }
+    )
+
     // 删除文件/目录
     handler.registerTool(
             name = "delete_file",

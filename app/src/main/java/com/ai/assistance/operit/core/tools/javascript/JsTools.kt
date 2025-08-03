@@ -18,6 +18,9 @@ fun getJsToolsDefinition(): String {
                     if (append !== undefined) params.append = append ? "true" : "false";
                     return toolCall("write_file", params);
                 },
+                writeBinary: (path, base64Content) => {
+                    return toolCall("write_file_binary", { path, base64Content });
+                },
                 deleteFile: (path, recursive) => {
                     const params = { path };
                     if (recursive !== undefined) params.recursive = recursive ? "true" : "false";

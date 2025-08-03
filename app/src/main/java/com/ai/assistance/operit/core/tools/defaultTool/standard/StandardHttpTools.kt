@@ -115,6 +115,17 @@ class StandardHttpTools(private val context: Context) {
         }
     }
 
+    /** 读取响应体为Base64 */
+    private fun readResponseBodyAsBase64(responseBody: ResponseBody): String {
+        return try {
+            val bytes = responseBody.bytes()
+            android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+        } catch (e: Exception) {
+            Log.e(TAG, "读取响应体为Base64时发生错误", e)
+            ""
+        }
+    }
+
     /** 发送HTTP请求 支持GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS方法，并可自定义请求头、请求体、超时、代理和Cookie设置 */
     suspend fun httpRequest(tool: AITool): ToolResult {
         val url = tool.parameters.find { it.name == "url" }?.value ?: ""
@@ -311,6 +322,8 @@ class StandardHttpTools(private val context: Context) {
                 )
             }
 
+            val isTextContent = isTextBasedContentType(contentType)
+
             // 处理响应
             val responseHeadersMap =
                     response.headers.names().associateWith { name ->
@@ -332,8 +345,14 @@ class StandardHttpTools(private val context: Context) {
                                     error = "响应体为空"
                             )
 
-            // 使用智能读取方法处理编码
-            val responseBodyString = readResponseBody(responseBody, contentType)
+            var responseBodyString: String? = null
+            var responseBodyBase64: String? = null
+
+            if(isTextContent) {
+                responseBodyString = readResponseBody(responseBody, contentType)
+            } else {
+                responseBodyBase64 = readResponseBodyAsBase64(responseBody)
+            }
 
             // 返回原始内容
             val httpResponseData =
@@ -343,9 +362,10 @@ class StandardHttpTools(private val context: Context) {
                             statusMessage = response.message,
                             headers = responseHeadersMap,
                             contentType = contentType,
-                            content = responseBodyString,
-                            contentSummary = responseBodyString,
-                            size = responseBodyString.length,
+                            content = responseBodyString ?: "[Binary Content]",
+                            contentBase64 = responseBodyBase64,
+                            contentSummary = responseBodyString ?: "[Binary Content]",
+                            size = (responseBodyString?.length ?: responseBodyBase64?.length) ?: 0,
                             cookies = cookiesMap
                     )
 
@@ -717,6 +737,7 @@ class StandardHttpTools(private val context: Context) {
                 )
             }
 
+            val isTextContent = isTextBasedContentType(contentType)
             // 处理响应
             val responseHeadersMap =
                     response.headers.names().associateWith { name ->
@@ -738,8 +759,14 @@ class StandardHttpTools(private val context: Context) {
                                     error = "响应体为空"
                             )
 
-            // 使用智能读取方法处理编码
-            val responseBodyString = readResponseBody(responseBody, contentType)
+            var responseBodyString: String? = null
+            var responseBodyBase64: String? = null
+
+            if(isTextContent) {
+                responseBodyString = readResponseBody(responseBody, contentType)
+            } else {
+                responseBodyBase64 = readResponseBodyAsBase64(responseBody)
+            }
 
             // 返回原始内容
             val httpResponseData =
@@ -749,9 +776,10 @@ class StandardHttpTools(private val context: Context) {
                             statusMessage = response.message,
                             headers = responseHeadersMap,
                             contentType = contentType,
-                            content = responseBodyString,
-                            contentSummary = responseBodyString,
-                            size = responseBodyString.length,
+                            content = responseBodyString ?: "[Binary Content]",
+                            contentBase64 = responseBodyBase64,
+                            contentSummary = responseBodyString ?: "[Binary Content]",
+                            size = (responseBodyString?.length ?: responseBodyBase64?.length) ?: 0,
                             cookies = cookiesMap
                     )
 

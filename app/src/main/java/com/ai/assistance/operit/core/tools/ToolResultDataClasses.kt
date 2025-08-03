@@ -34,6 +34,22 @@ data class IntResultData(val value: Int) : ToolResultData() {
     override fun toString(): String = value.toString()
 }
 
+@Serializable
+data class BinaryResultData(val value: ByteArray) : ToolResultData() {
+    override fun toString(): String = "Binary data (${value.size} bytes)"
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+        other as BinaryResultData
+        return value.contentEquals(other.value)
+    }
+
+    override fun hashCode(): Int {
+        return value.contentHashCode()
+    }
+}
+
 /** 文件分段读取结果数据 */
 @Serializable
 data class FilePartContentData(
@@ -251,6 +267,7 @@ data class HttpResponseData(
         val headers: Map<String, String>,
         val contentType: String,
         val content: String,
+        val contentBase64: String? = null,
         val contentSummary: String,
         val size: Int,
         val cookies: Map<String, String> = emptyMap()

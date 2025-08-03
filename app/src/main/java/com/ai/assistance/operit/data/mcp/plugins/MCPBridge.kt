@@ -386,6 +386,7 @@ class MCPBridge(private val context: Context) {
     ): JSONObject? {
         val params =
                 JSONObject().apply {
+                    put("type", "local") // Explicitly set type for local services
                     put("name", name)
                     put("command", command)
                     if (args.isNotEmpty()) {
@@ -401,14 +402,43 @@ class MCPBridge(private val context: Context) {
                     }
                 }
 
-        val command =
+        val commandObj =
                 JSONObject().apply {
                     put("command", "register")
                     put("id", UUID.randomUUID().toString())
                     put("params", params)
                 }
 
-        return sendCommand(command)
+        return sendCommand(commandObj)
+    }
+
+    // Overload for remote services
+    suspend fun registerMcpService(
+        name: String,
+        type: String,
+        host: String,
+        port: Int,
+        description: String? = null
+    ): JSONObject? {
+        val params =
+            JSONObject().apply {
+                put("type", type)
+                put("name", name)
+                put("host", host)
+                put("port", port)
+                if (description != null) {
+                    put("description", description)
+                }
+            }
+
+        val commandObj =
+            JSONObject().apply {
+                put("command", "register")
+                put("id", UUID.randomUUID().toString())
+                put("params", params)
+            }
+
+        return sendCommand(commandObj)
     }
 
     // 取消注册MCP服务
@@ -445,6 +475,7 @@ class MCPBridge(private val context: Context) {
         if (name != null) {
             params.put("name", name)
         }
+        // Command and args are now only relevant for direct, unregistered local spawns
         if (command != null) {
             params.put("command", command)
         }

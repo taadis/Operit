@@ -6,7 +6,11 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.annotation.Keep
 import androidx.core.content.ContextCompat
-import com.ai.assistance.operit.core.tools.*
+import com.ai.assistance.operit.core.tools.AIToolHandler
+import com.ai.assistance.operit.core.tools.BinaryResultData
+import com.ai.assistance.operit.core.tools.BooleanResultData
+import com.ai.assistance.operit.core.tools.IntResultData
+import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolParameter
 import java.util.concurrent.CompletableFuture
@@ -17,6 +21,22 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import org.json.JSONObject
+import java.security.MessageDigest
+import javax.crypto.Cipher
+import javax.crypto.spec.SecretKeySpec
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Rect
+import android.util.Base64
+import java.io.ByteArrayOutputStream
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * JavaScript 引擎 - 通过 WebView 执行 JavaScript 脚本 提供与 Android 原生代码的交互机制
@@ -46,7 +66,14 @@ class JsEngine(private val context: Context) {
         private const val TAG = "JsEngine"
         private const val TIMEOUT_SECONDS = 60L // 增加超时时间到60秒
         private const val PRE_TIMEOUT_SECONDS = 55L // 提前5秒触发JavaScript端的超时保护
+        private const val BINARY_DATA_THRESHOLD = 32 * 1024 // 32KB
+        private const val BINARY_HANDLE_PREFIX = "@binary_handle:"
     }
+
+    // 存储原生Bitmap对象的注册表
+    private val bitmapRegistry = ConcurrentHashMap<String, Bitmap>()
+    // 存储大型二进制数据的注册表
+    private val binaryDataRegistry = ConcurrentHashMap<String, ByteArray>()
 
     // WebView 实例用于执行 JavaScript
     private var webView: WebView? = null
@@ -460,6 +487,12 @@ class JsEngine(private val context: Context) {
             
             // 加载第三方库支持
             ${getJsThirdPartyLibraries()}
+
+            // 加载 CryptoJS 原生桥接
+            ${loadCryptoJs(context)}
+            
+            // 加载 Jimp 原生桥接
+            ${loadJimpJs(context)}
             
             // 加载 UINode 库
             ${loadUINodeJs(context)}
@@ -836,6 +869,13 @@ class JsEngine(private val context: Context) {
         }
         toolCallbacks.clear()
 
+        // 清理Bitmap注册表
+        bitmapRegistry.values.forEach { it.recycle() }
+        bitmapRegistry.clear()
+
+        // 清理二进制数据注册表
+        binaryDataRegistry.clear()
+
         // 如果WebView已经存在，执行轻量级清理
         if (webView != null) {
             ContextCompat.getMainExecutor(context).execute {
@@ -864,6 +904,184 @@ class JsEngine(private val context: Context) {
     /** JavaScript 接口，提供 Native 调用方法 */
     @Keep
     inner class JsToolCallInterface {
+
+        @JavascriptInterface
+        fun image_processing(callbackId: String, operation: String, argsJson: String) {
+            Thread {
+                try {
+                    val args = Json.decodeFromString(ListSerializer(JsonElement.serializer()), argsJson)
+                    val result: Any? = when (operation.lowercase()) {
+                        "read" -> {
+                            Log.d(TAG, "Entering 'read' operation in image_processing.")
+                            val data = args[0].jsonPrimitive.content
+                            val decodedBytes: ByteArray
+                            if (data.startsWith(BINARY_HANDLE_PREFIX)) {
+                                val handle = data.substring(BINARY_HANDLE_PREFIX.length)
+                                Log.d(TAG, "Reading image from binary handle: $handle")
+                                decodedBytes = binaryDataRegistry.remove(handle)
+                                    ?: throw Exception("Invalid or expired binary handle: $handle")
+                            } else {
+                                Log.d(TAG, "Reading image from Base64 string.")
+                                decodedBytes = Base64.decode(data, Base64.DEFAULT)
+                            }
+                            Log.d(TAG, "Decoded data to ${decodedBytes.size} bytes.")
+
+                            val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+
+                            if (bitmap == null) {
+                                Log.e(TAG, "BitmapFactory.decodeByteArray returned null. Throwing exception.")
+                                throw Exception("Failed to decode image. The format may be unsupported or data is corrupt.")
+                            } else {
+                                Log.d(TAG, "BitmapFactory.decodeByteArray returned a non-null Bitmap.")
+                                Log.d(TAG, "Bitmap dimensions: ${bitmap.width}x${bitmap.height}")
+                                Log.d(TAG, "Bitmap config: ${bitmap.config}")
+                                val id = UUID.randomUUID().toString()
+                                Log.d(TAG, "Storing bitmap with ID: $id")
+                                bitmapRegistry[id] = bitmap
+                                id
+                            }
+                        }
+                        "create" -> {
+                            val width = args[0].jsonPrimitive.int
+                            val height = args[1].jsonPrimitive.int
+                            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                            val id = UUID.randomUUID().toString()
+                            bitmapRegistry[id] = bitmap
+                            id
+                        }
+                        "crop" -> {
+                            val id = args[0].jsonPrimitive.content
+                            Log.d(TAG, "Attempting to crop bitmap with ID: $id")
+                            val x = args[1].jsonPrimitive.int
+                            val y = args[2].jsonPrimitive.int
+                            val w = args[3].jsonPrimitive.int
+                            val h = args[4].jsonPrimitive.int
+                            val originalBitmap = bitmapRegistry[id]
+                                ?: throw Exception("Source bitmap not found for crop (ID: $id)")
+                            val croppedBitmap = Bitmap.createBitmap(originalBitmap, x, y, w, h)
+                            val newId = UUID.randomUUID().toString()
+                            bitmapRegistry[newId] = croppedBitmap
+                            newId
+                        }
+                        "composite" -> {
+                            val baseId = args[0].jsonPrimitive.content
+                            val srcId = args[1].jsonPrimitive.content
+                            Log.d(TAG, "Attempting to composite with base ID: $baseId and src ID: $srcId")
+                            val x = args[2].jsonPrimitive.int
+                            val y = args[3].jsonPrimitive.int
+                            val baseBitmap = bitmapRegistry[baseId]
+                                ?: throw Exception("Base bitmap not found for composite (ID: $baseId)")
+                            val srcBitmap = bitmapRegistry[srcId]
+                                ?: throw Exception("Source bitmap not found for composite (ID: $srcId)")
+                            val canvas = Canvas(baseBitmap)
+                            canvas.drawBitmap(srcBitmap, x.toFloat(), y.toFloat(), null)
+                            null
+                        }
+                        "getwidth" -> {
+                            val id = args[0].jsonPrimitive.content
+                            Log.d(TAG, "Attempting to getWidth for bitmap with ID: $id")
+                            bitmapRegistry[id]?.width ?: throw Exception("Bitmap not found for getWidth (ID: $id)")
+                        }
+                        "getheight" -> {
+                            val id = args[0].jsonPrimitive.content
+                            Log.d(TAG, "Attempting to getHeight for bitmap with ID: $id")
+                            bitmapRegistry[id]?.height ?: throw Exception("Bitmap not found for getHeight (ID: $id)")
+                        }
+                        "getbase64" -> {
+                            val id = args[0].jsonPrimitive.content
+                            Log.d(TAG, "Attempting to getBase64 for bitmap with ID: $id")
+                            val mime = args.getOrNull(1)?.jsonPrimitive?.content ?: "image/jpeg"
+                            val bitmap = bitmapRegistry[id]
+                                ?: throw Exception("Bitmap not found for getBase64 (ID: $id)")
+                            val outputStream = ByteArrayOutputStream()
+                            val format = if (mime == "image/png") Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG
+                            bitmap.compress(format, 90, outputStream)
+                            Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
+                        }
+                        "release" -> {
+                            val id = args[0].jsonPrimitive.content
+                            Log.d(TAG, "Attempting to release bitmap with ID: $id")
+                            bitmapRegistry.remove(id)?.recycle()
+                            null
+                        }
+                        else -> throw IllegalArgumentException("Unknown image operation: $operation")
+                    }
+                    val jsonResultElement = when (result) {
+                        is String -> JsonPrimitive(result)
+                        is Number -> JsonPrimitive(result)
+                        is Boolean -> JsonPrimitive(result)
+                        null -> JsonNull
+                        else -> JsonPrimitive(result.toString()) // Fallback
+                    }
+                    sendToolResult(callbackId, Json.encodeToString(JsonElement.serializer(), jsonResultElement), false)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Native image processing failed: ${e.message}", e)
+                    sendToolResult(callbackId, e.message ?: "Unknown image processing error", true)
+                }
+            }.start()
+        }
+
+        @JavascriptInterface
+        fun crypto(algorithm: String, operation: String, argsJson: String): String {
+            return try {
+                // Deserialize the JSON array of arguments
+                val args = Json.decodeFromString(ListSerializer(String.serializer()), argsJson)
+
+                when (algorithm.lowercase()) {
+                    "md5" -> {
+                        // MD5 expects a single string argument
+                        val input = args.getOrNull(0) ?: ""
+                        val md = MessageDigest.getInstance("MD5")
+                        // Explicitly use UTF-8 to ensure consistency with JS
+                        val digest = md.digest(input.toByteArray(Charsets.UTF_8))
+                        // Convert byte array to hex string
+                        digest.joinToString("") { "%02x".format(it) }
+                    }
+                    "aes" -> {
+                        when (operation.lowercase()) {
+                            "decrypt" -> {
+                                val data = args.getOrNull(0) ?: ""
+                                val keyHex = args.getOrNull(1) ?: throw IllegalArgumentException("Missing key for AES decryption")
+
+                                // CRITICAL FIX: The key is not the 16-byte hex-decoded value of the MD5,
+                                // but the 32-byte UTF-8 representation of the MD5 hex string itself.
+                                val keyBytes = keyHex.toByteArray(Charsets.UTF_8)
+                                
+                                // Use the provided key for decryption
+                                val secretKey = SecretKeySpec(keyBytes, "AES")
+                                // Switch to NoPadding and handle it manually, as per the reference code.
+                                val cipher = Cipher.getInstance("AES/ECB/NoPadding")
+                                cipher.init(Cipher.DECRYPT_MODE, secretKey)
+                                val decodedData = android.util.Base64.decode(data, android.util.Base64.DEFAULT)
+                                val decryptedWithPadding = cipher.doFinal(decodedData)
+
+                                // Manual PKCS7 unpadding
+                                if (decryptedWithPadding.isEmpty()) {
+                                    return "" // Or throw an exception
+                                }
+
+                                val paddingLength = decryptedWithPadding.last().toInt()
+
+                                if (paddingLength < 1 || paddingLength > decryptedWithPadding.size) {
+                                     // This can happen if the key is wrong and the decrypted data is garbage.
+                                     throw Exception("Invalid PKCS7 padding length: $paddingLength")
+                                }
+                                
+                                val decryptedBytes = decryptedWithPadding.copyOfRange(0, decryptedWithPadding.size - paddingLength)
+                                
+                                String(decryptedBytes, Charsets.UTF_8)
+                            }
+                            else -> throw IllegalArgumentException("Unknown AES operation: $operation")
+                        }
+                    }
+                    else -> throw IllegalArgumentException("Unknown algorithm: $algorithm")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Native crypto operation failed: ${e.message}", e)
+                // Return a structured error JSON that the JS bridge can understand
+                "{\"nativeError\":\"${e.message?.replace("\"", "'")}\"}"
+            }
+        }
 
         @JavascriptInterface
         fun sendIntermediateResult(result: String) {
@@ -1057,6 +1275,17 @@ class JsEngine(private val context: Context) {
 
                                                         // Handle different result data types
                                                         when (val resultData = result.result) {
+                                                            is BinaryResultData -> {
+                                                                if (resultData.value.size > BINARY_DATA_THRESHOLD) {
+                                                                    val handle = UUID.randomUUID().toString()
+                                                                    binaryDataRegistry[handle] = resultData.value
+                                                                    Log.d(TAG, "[Async] Stored large binary data with handle: $handle")
+                                                                    put("data", JsonPrimitive("$BINARY_HANDLE_PREFIX$handle"))
+                                                                } else {
+                                                                    put("data", JsonPrimitive(Base64.encodeToString(resultData.value, Base64.NO_WRAP)))
+                                                                }
+                                                                put("dataType", JsonPrimitive("base64")) // Keep dataType for JS compatibility
+                                                            }
                                                             is StringResultData ->
                                                                     put(
                                                                             "data",
@@ -1157,17 +1386,23 @@ class JsEngine(private val context: Context) {
         private fun sendToolResult(callbackId: String, result: String, isError: Boolean) {
             ContextCompat.getMainExecutor(context).execute {
                 try {
-                    // If the result is already a JSON string, don't escape it further
+                    // Check if the result is already a valid JSON literal (object, array, or quoted string).
+                    val trimmedResult = result.trim()
+                    val isJsonLiteral = (trimmedResult.startsWith("{") && trimmedResult.endsWith("}")) ||
+                                        (trimmedResult.startsWith("[") && trimmedResult.endsWith("]")) ||
+                                        (trimmedResult.startsWith("\"") && trimmedResult.endsWith("\""))
+
                     val jsCode =
-                            if (result.trim().startsWith("{") || result.trim().startsWith("[")) {
+                            if (isJsonLiteral) {
                                 """
                             if (typeof window['$callbackId'] === 'function') {
-                                window['$callbackId'](${result}, $isError);
+                                window['$callbackId']($result, $isError);
                             } else {
                                 console.error("Callback not found: $callbackId");
                             }
                         """.trimIndent()
                             } else {
+                                // For plain strings or other primitives, escape and wrap in quotes for JS.
                                 val escapedResult =
                                         result.replace("\\", "\\\\")
                                                 .replace("\"", "\\\"")
@@ -1344,6 +1579,13 @@ class JsEngine(private val context: Context) {
             }
             toolCallbacks.clear()
 
+            // 清理Bitmap注册表
+            bitmapRegistry.values.forEach { it.recycle() }
+            bitmapRegistry.clear()
+
+            // 清理二进制数据注册表
+            binaryDataRegistry.clear()
+
             // 在主线程中销毁 WebView
             ContextCompat.getMainExecutor(context).execute {
                 try {
@@ -1422,5 +1664,23 @@ class JsEngine(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error during diagnostics: ${e.message}", e)
         }
+    }
+}
+
+private fun loadCryptoJs(context: Context): String {
+    return try {
+        context.assets.open("js/CryptoJS.js").bufferedReader().use { it.readText() }
+    } catch (e: Exception) {
+        Log.e("JsEngine", "Failed to load CryptoJS.js", e)
+        "// CryptoJS.js failed to load"
+    }
+}
+
+private fun loadJimpJs(context: Context): String {
+    return try {
+        context.assets.open("js/Jimp.js").bufferedReader().use { it.readText() }
+    } catch (e: Exception) {
+        Log.e("JsEngine", "Failed to load Jimp.js", e)
+        "// Jimp.js failed to load"
     }
 }

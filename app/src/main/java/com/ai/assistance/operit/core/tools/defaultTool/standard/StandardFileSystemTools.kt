@@ -808,6 +808,126 @@ open class StandardFileSystemTools(protected val context: Context) {
                 }
         }
 
+        /** Write base64 encoded content to a binary file */
+        open suspend fun writeFileBinary(tool: AITool): ToolResult {
+                val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+                val base64Content = tool.parameters.find { it.name == "base64Content" }?.value ?: ""
+
+                if (path.isBlank()) {
+                        return ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result =
+                                        FileOperationData(
+                                                operation = "write_binary",
+                                                path = "",
+                                                successful = false,
+                                                details = "Path parameter is required"
+                                        ),
+                                error = "Path parameter is required"
+                        )
+                }
+
+                if (base64Content.isBlank()) {
+                        return ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result =
+                                        FileOperationData(
+                                                operation = "write_binary",
+                                                path = path,
+                                                successful = false,
+                                                details = "base64Content parameter is required"
+                                        ),
+                                error = "base64Content parameter is required"
+                        )
+                }
+
+                return try {
+                        val file = File(path)
+
+                        // Create parent directories if needed
+                        val parentDir = file.parentFile
+                        if (parentDir != null && !parentDir.exists()) {
+                                if (!parentDir.mkdirs()) {
+                                        Log.w(
+                                                TAG,
+                                                "Failed to create parent directory: ${parentDir.absolutePath}"
+                                        )
+                                }
+                        }
+
+                        // Decode base64 and write bytes
+                        val decodedBytes =
+                                android.util.Base64.decode(base64Content, android.util.Base64.DEFAULT)
+                        file.writeBytes(decodedBytes)
+
+                        // Verify write was successful
+                        if (!file.exists()) {
+                                return ToolResult(
+                                        toolName = tool.name,
+                                        success = false,
+                                        result =
+                                                FileOperationData(
+                                                        operation = "write_binary",
+                                                        path = path,
+                                                        successful = false,
+                                                        details =
+                                                                "Write completed but file does not exist. Possible permission issue."
+                                                ),
+                                        error =
+                                                "Write completed but file does not exist. Possible permission issue."
+                                )
+                        }
+
+                        if (file.length() == 0L && decodedBytes.isNotEmpty()) {
+                                return ToolResult(
+                                        toolName = tool.name,
+                                        success = false,
+                                        result =
+                                                FileOperationData(
+                                                        operation = "write_binary",
+                                                        path = path,
+                                                        successful = false,
+                                                        details =
+                                                                "File was created but appears to be empty. Possible write failure."
+                                                ),
+                                        error =
+                                                "File was created but appears to be empty. Possible write failure."
+                                )
+                        }
+
+                        val details = "Binary content written to $path"
+
+                        return ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result =
+                                        FileOperationData(
+                                                operation = "write_binary",
+                                                path = path,
+                                                successful = true,
+                                                details = details
+                                        ),
+                                error = ""
+                        )
+                } catch (e: Exception) {
+                        Log.e(TAG, "Error writing binary file", e)
+                        return ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result =
+                                        FileOperationData(
+                                                operation = "write_binary",
+                                                path = path,
+                                                successful = false,
+                                                details = "Error writing binary file: ${e.message}"
+                                        ),
+                                error = "Error writing binary file: ${e.message}"
+                        )
+                }
+        }
+
         /** Delete a file or directory */
         open suspend fun deleteFile(tool: AITool): ToolResult {
                 val path = tool.parameters.find { it.name == "path" }?.value ?: ""

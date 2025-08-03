@@ -126,10 +126,16 @@ class UserPreferencesManager(private val context: Context) {
         private val KEY_CUSTOM_AI_AVATAR_URI = stringPreferencesKey("custom_ai_avatar_uri")
         private val KEY_AVATAR_SHAPE = stringPreferencesKey("avatar_shape")
         private val KEY_AVATAR_CORNER_RADIUS = floatPreferencesKey("avatar_corner_radius")
+        private val KEY_ON_COLOR_MODE = stringPreferencesKey("on_color_mode")
+        private val KEY_CUSTOM_CHAT_TITLE = stringPreferencesKey("custom_chat_title")
 
 
         const val AVATAR_SHAPE_CIRCLE = "circle"
         const val AVATAR_SHAPE_SQUARE = "square"
+
+        const val ON_COLOR_MODE_AUTO = "auto"
+        const val ON_COLOR_MODE_LIGHT = "light"
+        const val ON_COLOR_MODE_DARK = "dark"
     }
 
     // 获取应用语言设置
@@ -335,6 +341,16 @@ class UserPreferencesManager(private val context: Context) {
                 preferences[KEY_AVATAR_CORNER_RADIUS] ?: 8f
             }
 
+    val onColorMode: Flow<String> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[KEY_ON_COLOR_MODE] ?: ON_COLOR_MODE_AUTO
+            }
+
+    val customChatTitle: Flow<String?> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[KEY_CUSTOM_CHAT_TITLE]
+            }
+
     // 保存主题设置
     suspend fun saveThemeSettings(
             themeMode: String? = null,
@@ -367,7 +383,9 @@ class UserPreferencesManager(private val context: Context) {
             customUserAvatarUri: String? = null,
             customAiAvatarUri: String? = null,
             avatarShape: String? = null,
-            avatarCornerRadius: Float? = null
+            avatarCornerRadius: Float? = null,
+            onColorMode: String? = null,
+            customChatTitle: String? = null
     ) {
         context.userPreferencesDataStore.edit { preferences ->
             themeMode?.let { preferences[THEME_MODE] = it }
@@ -405,6 +423,8 @@ class UserPreferencesManager(private val context: Context) {
             customAiAvatarUri?.let { preferences[KEY_CUSTOM_AI_AVATAR_URI] = it }
             avatarShape?.let { preferences[KEY_AVATAR_SHAPE] = it }
             avatarCornerRadius?.let { preferences[KEY_AVATAR_CORNER_RADIUS] = it }
+            onColorMode?.let { preferences[KEY_ON_COLOR_MODE] = it }
+            customChatTitle?.let { preferences[KEY_CUSTOM_CHAT_TITLE] = it }
         }
     }
 
@@ -442,6 +462,8 @@ class UserPreferencesManager(private val context: Context) {
             preferences.remove(KEY_CUSTOM_AI_AVATAR_URI)
             preferences.remove(KEY_AVATAR_SHAPE)
             preferences.remove(KEY_AVATAR_CORNER_RADIUS)
+            preferences.remove(KEY_ON_COLOR_MODE)
+            preferences.remove(KEY_CUSTOM_CHAT_TITLE)
         }
     }
 

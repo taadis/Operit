@@ -19,7 +19,6 @@ import androidx.core.text.HtmlCompat
 import com.ai.assistance.operit.R
 import kotlinx.coroutines.delay
 
-@RequiresApi(Build.VERSION_CODES.P)
 @Composable
 fun AgreementScreen(onAgreementAccepted: () -> Unit) {
         val scrollState = rememberScrollState()

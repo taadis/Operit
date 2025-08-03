@@ -18,6 +18,8 @@ import {
 import { Intent as AndroidIntent, IntentFlag as AndroidIntentFlag, IntentAction as AndroidIntentAction, IntentCategory as AndroidIntentCategory } from './android';
 import { UINode as UINodeClass, UI as UINamespace } from './ui';
 import { Android as AndroidClass } from './android';
+import { CryptoJS } from './cryptojs';
+import { Jimp } from './jimp';
 
 // Export core interfaces and functions
 export * from './core';

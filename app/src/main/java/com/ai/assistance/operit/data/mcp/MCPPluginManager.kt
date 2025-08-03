@@ -123,6 +123,37 @@ class MCPPluginManager(
     }
 
     /**
+     * "Installs" a remote MCP server by saving its metadata locally.
+     * This allows the app to manage it like a local plugin.
+     *
+     * @param server The remote server to "install".
+     * @return true if the metadata was saved successfully, false otherwise.
+     */
+    suspend fun installRemotePlugin(server: com.ai.assistance.operit.data.mcp.MCPServer): Boolean {
+        try {
+            if (server.type != "remote") {
+                Log.e(TAG, "installRemotePlugin called with a non-remote server: ${server.id}")
+                return false
+            }
+            
+            // "Install" the remote plugin by creating its directory and metadata file
+            val result = mcpInstaller.installRemotePluginMetadata(server)
+
+            if (result) {
+                // Rescan installed plugins to include the new remote service
+                scanInstalledPlugins()
+                Log.d(TAG, "Remote plugin ${server.id} registered successfully.")
+            } else {
+                Log.e(TAG, "Failed to register remote plugin ${server.id}.")
+            }
+            return result
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception while registering remote plugin ${server.id}", e)
+            return false
+        }
+    }
+
+    /**
      * Installs an MCP plugin from a local zip file
      *
      * @param pluginId The ID of the plugin to install

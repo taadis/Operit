@@ -53,6 +53,7 @@ import androidx.compose.animation.with
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
@@ -117,6 +118,10 @@ fun AppContent(
     val chatHistories =
             chatHistoryManager.chatHistoriesFlow.collectAsState(initial = emptyList()).value
 
+    // Get custom chat title from preferences
+    val customChatTitle by preferencesManager.customChatTitle.collectAsState(initial = null)
+
+
     // 当前聊天标题
     val currentChatTitle =
             if (currentChatId != null) {
@@ -140,6 +145,9 @@ fun AppContent(
                             Text(
                                     text =
                                             when {
+                                                // 如果是AI对话界面且有自定义标题，则优先显示
+                                                currentScreen is Screen.AiChat && !customChatTitle.isNullOrEmpty() ->
+                                                    customChatTitle!!
                                                 // 优先使用Screen的标题
                                                 currentScreen.getTitle().isNotBlank() ->
                                                         currentScreen.getTitle()

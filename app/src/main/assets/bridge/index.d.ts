@@ -18,6 +18,7 @@ declare class McpBridge {
     private config;
     private server;
     private mcpProcesses;
+    private remoteServiceConnections;
     private mcpToolsMap;
     private serviceReadyMap;
     private serviceRegistry;
@@ -28,6 +29,9 @@ declare class McpBridge {
     private toolCallServiceMap;
     private readonly REQUEST_TIMEOUT;
     private mcpErrors;
+    private restartAttempts;
+    private readonly MAX_RESTART_ATTEMPTS;
+    private readonly RESTART_DELAY_MS;
     constructor(config?: Partial<BridgeConfig>);
     /**
      * 加载MCP服务注册表
@@ -50,13 +54,25 @@ declare class McpBridge {
      */
     private getServiceList;
     /**
-     * 检查服务是否运行中
+     * 检查服务是否激活 (运行中或已连接)
      */
-    private isServiceRunning;
+    private isServiceActive;
+    /**
+     * 连接到远程MCP服务 (HTTP+SSE)
+     */
+    private connectToRemoteService;
+    /**
+     * 处理远程连接关闭和重连
+     */
+    private handleRemoteClosure;
     /**
      * 启动特定服务的子进程
      */
     private startMcpProcess;
+    /**
+     * 发送请求到指定服务 (本地或远程)
+     */
+    private sendRequestToService;
     /**
      * 获取特定服务的MCP工具列表
      */

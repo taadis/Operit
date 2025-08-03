@@ -18,6 +18,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +44,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import com.ai.assistance.operit.data.preferences.UserPreferencesManager
+import com.ai.assistance.operit.data.preferences.UserPreferencesManager.Companion.ON_COLOR_MODE_AUTO
+import com.ai.assistance.operit.data.preferences.UserPreferencesManager.Companion.ON_COLOR_MODE_DARK
+import com.ai.assistance.operit.data.preferences.UserPreferencesManager.Companion.ON_COLOR_MODE_LIGHT
 import com.google.android.exoplayer2.DefaultLoadControl
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
@@ -73,6 +77,7 @@ private val LightColorScheme =
                 */
                 )
 
+
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun OperitTheme(content: @Composable () -> Unit) {
@@ -90,6 +95,7 @@ fun OperitTheme(content: @Composable () -> Unit) {
     val customPrimaryColor by preferencesManager.customPrimaryColor.collectAsState(initial = null)
     val customSecondaryColor by
             preferencesManager.customSecondaryColor.collectAsState(initial = null)
+    val onColorMode by preferencesManager.onColorMode.collectAsState(initial = ON_COLOR_MODE_AUTO)
 
     // 获取背景图片设置
     val useBackgroundImage by preferencesManager.useBackgroundImage.collectAsState(initial = false)
@@ -141,20 +147,16 @@ fun OperitTheme(content: @Composable () -> Unit) {
                 else -> LightColorScheme
             }
 
-    // 应用自定义颜色
+    // 应用自定义颜色和文本颜色
     if (useCustomColors) {
         customPrimaryColor?.let { primaryArgb ->
-            val primaryColor = Color(primaryArgb)
-            val customTertiaryColor =
-                    customSecondaryColor?.let { Color(it) } ?: colorScheme.tertiary
+            val primary = Color(primaryArgb)
+            val secondary = customSecondaryColor?.let { Color(it) } ?: colorScheme.secondary
 
-            colorScheme =
-                    if (darkTheme) {
-                        // 为暗色主题生成一套完整的颜色方案
-                        generateDarkColorScheme(primaryColor, customTertiaryColor)
+            colorScheme = if (darkTheme) {
+                generateDarkColorScheme(primary, secondary, onColorMode)
                     } else {
-                        // 为亮色主题生成一套完整的颜色方案
-                        generateLightColorScheme(primaryColor, customTertiaryColor)
+                generateLightColorScheme(primary, secondary, onColorMode)
                     }
         }
     }
@@ -442,61 +444,27 @@ fun OperitTheme(content: @Composable () -> Unit) {
 /** 为亮色主题生成基于主色的完整颜色方案 */
 private fun generateLightColorScheme(
         primaryColor: Color,
-        secondaryColor: Color
-): androidx.compose.material3.ColorScheme {
-    // 生成主色衍生色
-    val primaryContainer = lightenColor(primaryColor, 0.7f)
-    val onPrimary = getContrastingTextColor(primaryColor)
-    val onPrimaryContainer = getContrastingTextColor(primaryContainer)
+    secondaryColor: Color,
+    onColorMode: String
+): ColorScheme {
+    val onPrimary = when (onColorMode) {
+        ON_COLOR_MODE_LIGHT -> Color.White
+        ON_COLOR_MODE_DARK -> Color.Black
+        else -> getContrastingTextColor(primaryColor)
+    }
+    val onSecondary = when (onColorMode) {
+        ON_COLOR_MODE_LIGHT -> Color.White
+        ON_COLOR_MODE_DARK -> Color.Black
+        else -> getContrastingTextColor(secondaryColor)
+    }
 
-    // 生成次色衍生色
+    val primaryContainer = lightenColor(primaryColor, 0.7f)
+    val onPrimaryContainer = getContrastingTextColor(primaryContainer)
     val secondaryContainer = lightenColor(secondaryColor, 0.7f)
-    val onSecondary = getContrastingTextColor(secondaryColor)
     val onSecondaryContainer = getContrastingTextColor(secondaryContainer)
 
-    // 生成三级色（基于主色和次色的混合）
-    val tertiary = blendColors(primaryColor, secondaryColor, 0.5f)
-    val tertiaryContainer = lightenColor(tertiary, 0.7f)
-    val onTertiary = getContrastingTextColor(tertiary)
-    val onTertiaryContainer = getContrastingTextColor(tertiaryContainer)
-
-    // 为背景和表面使用浅灰色调
-    val background = Color(0xFFF8F8F8)
-    val surface = Color.White
-    val surfaceVariant = Color(0xFFE7E0EB)
-
-    // 确保文本颜色具有足够的对比度
-    val onBackground = getContrastingTextColor(background, forceDark = true)
-    val onSurface = getContrastingTextColor(surface, forceDark = true)
-    val onSurfaceVariant = getContrastingTextColor(surfaceVariant, forceDark = true)
-
-    // 添加Material 3所需的新表面相关颜色
-    val surfaceTint = primaryColor // 使用主色作为表面色调
-    val surfaceBright = Color(0xFFFCFCFC) // 亮表面色
-    val surfaceDim = Color(0xFFECECEC) // 暗表面色
-    val surfaceContainer = Color(0xFFF3F3F3) // 表面容器色
-    val surfaceContainerHigh = Color(0xFFEBEBEB) // 高表面容器色
-    val surfaceContainerHighest = Color(0xFFE3E3E3) // 最高表面容器色
-    val surfaceContainerLow = Color(0xFFF7F7F7) // 低表面容器色
-    val surfaceContainerLowest = Color(0xFFFFFFFF) // 最低表面容器色
-
-    // 错误颜色保持一致
-    val error = Color(0xFFB3261E)
-    val errorContainer = Color(0xFFF9DEDC)
-    val onError = Color.White
-    val onErrorContainer = Color(0xFF410E0B)
-
-    // 轮廓颜色
-    val outline = Color(0xFF79747E)
-    val outlineVariant = Color(0xFFCAC4D0)
-
-    // 反向颜色
-    val inverseSurface = Color(0xFF313033)
-    val inverseOnSurface = Color(0xFFF4EFF4)
-    val inversePrimary = lightenColor(primaryColor, 0.2f)
-
-    // 创建完整的ColorScheme
-    return androidx.compose.material3.ColorScheme(
+    // Return a complete color scheme, ensuring onSurface and onSurfaceVariant are consistent
+    return LightColorScheme.copy(
             primary = primaryColor,
             onPrimary = onPrimary,
             primaryContainer = primaryContainer,
@@ -505,99 +473,40 @@ private fun generateLightColorScheme(
             onSecondary = onSecondary,
             secondaryContainer = secondaryContainer,
             onSecondaryContainer = onSecondaryContainer,
-            tertiary = tertiary,
-            onTertiary = onTertiary,
-            tertiaryContainer = tertiaryContainer,
-            onTertiaryContainer = onTertiaryContainer,
-            error = error,
-            onError = onError,
-            errorContainer = errorContainer,
-            onErrorContainer = onErrorContainer,
-            background = background,
-            onBackground = onBackground,
-            surface = surface,
-            onSurface = onSurface,
-            surfaceVariant = surfaceVariant,
-            onSurfaceVariant = onSurfaceVariant,
-            outline = outline,
-            outlineVariant = outlineVariant,
-            inverseSurface = inverseSurface,
-            inverseOnSurface = inverseOnSurface,
-            inversePrimary = inversePrimary,
-            scrim = Color(0x99000000),
-            surfaceTint = surfaceTint,
-            surfaceBright = surfaceBright,
-            surfaceDim = surfaceDim,
-            surfaceContainer = surfaceContainer,
-            surfaceContainerHigh = surfaceContainerHigh,
-            surfaceContainerHighest = surfaceContainerHighest,
-            surfaceContainerLow = surfaceContainerLow,
-            surfaceContainerLowest = surfaceContainerLowest
+        // Ensure other colors are consistent with a light theme
+        onSurface = Color.Black,
+        onSurfaceVariant = Color.Black.copy(alpha = 0.7f),
+        onBackground = Color.Black
     )
 }
 
 /** 为暗色主题生成基于主色的完整颜色方案 */
 private fun generateDarkColorScheme(
         primaryColor: Color,
-        secondaryColor: Color
-): androidx.compose.material3.ColorScheme {
-    // 暗色主题中基础色需要变亮一些
+    secondaryColor: Color,
+    onColorMode: String
+): ColorScheme {
     val adjustedPrimaryColor = lightenColor(primaryColor, 0.2f)
     val adjustedSecondaryColor = lightenColor(secondaryColor, 0.2f)
 
-    // 生成主色衍生色
-    val primaryContainer = darkenColor(primaryColor, 0.3f)
-    val onPrimary = getContrastingTextColor(adjustedPrimaryColor)
-    val onPrimaryContainer = getContrastingTextColor(primaryContainer, forceLight = true)
+    val onPrimary = when (onColorMode) {
+        ON_COLOR_MODE_LIGHT -> Color.White
+        ON_COLOR_MODE_DARK -> Color.Black
+        else -> getContrastingTextColor(adjustedPrimaryColor)
+    }
+    val onSecondary = when (onColorMode) {
+        ON_COLOR_MODE_LIGHT -> Color.White
+        ON_COLOR_MODE_DARK -> Color.Black
+        else -> getContrastingTextColor(adjustedSecondaryColor)
+    }
 
-    // 生成次色衍生色
+    val primaryContainer = darkenColor(primaryColor, 0.3f)
+    val onPrimaryContainer = getContrastingTextColor(primaryContainer, forceLight = true)
     val secondaryContainer = darkenColor(secondaryColor, 0.3f)
-    val onSecondary = getContrastingTextColor(adjustedSecondaryColor)
     val onSecondaryContainer = getContrastingTextColor(secondaryContainer, forceLight = true)
 
-    // 生成三级色（基于主色和次色的混合）
-    val tertiary = blendColors(adjustedPrimaryColor, adjustedSecondaryColor, 0.5f)
-    val tertiaryContainer = darkenColor(tertiary, 0.3f)
-    val onTertiary = getContrastingTextColor(tertiary)
-    val onTertiaryContainer = getContrastingTextColor(tertiaryContainer, forceLight = true)
-
-    // 为背景和表面使用深色
-    val background = Color(0xFF1C1B1F)
-    val surface = Color(0xFF121212)
-    val surfaceVariant = Color(0xFF49454F)
-
-    // 确保文本颜色具有足够的对比度
-    val onBackground = getContrastingTextColor(background, forceLight = true)
-    val onSurface = getContrastingTextColor(surface, forceLight = true)
-    val onSurfaceVariant = getContrastingTextColor(surfaceVariant, forceLight = true)
-
-    // 添加Material 3所需的新表面相关颜色
-    val surfaceTint = adjustedPrimaryColor // 使用调整后的主色作为表面色调
-    val surfaceBright = Color(0xFF3B383C) // 亮表面色（暗色主题中稍微亮一点）
-    val surfaceDim = Color(0xFF121212) // 暗表面色（暗色主题中最暗）
-    val surfaceContainer = Color(0xFF211F26) // 表面容器色
-    val surfaceContainerHigh = Color(0xFF2B2930) // 高表面容器色
-    val surfaceContainerHighest = Color(0xFF36343B) // 最高表面容器色
-    val surfaceContainerLow = Color(0xFF1D1B20) // 低表面容器色
-    val surfaceContainerLowest = Color(0xFF0F0D13) // 最低表面容器色
-
-    // 错误颜色调整为暗色主题
-    val error = Color(0xFFF2B8B5)
-    val errorContainer = Color(0xFF8C1D17)
-    val onError = Color(0xFF601410)
-    val onErrorContainer = Color(0xFFF9DEDC)
-
-    // 轮廓颜色
-    val outline = Color(0xFF938F96)
-    val outlineVariant = Color(0xFF444147)
-
-    // 反向颜色
-    val inverseSurface = Color(0xFFE6E1E5)
-    val inverseOnSurface = Color(0xFF313033)
-    val inversePrimary = darkenColor(primaryColor, 0.2f)
-
-    // 创建完整的ColorScheme
-    return androidx.compose.material3.ColorScheme(
+    // Return a complete color scheme, ensuring onSurface and onSurfaceVariant are consistent
+    return DarkColorScheme.copy(
             primary = adjustedPrimaryColor,
             onPrimary = onPrimary,
             primaryContainer = primaryContainer,
@@ -606,34 +515,10 @@ private fun generateDarkColorScheme(
             onSecondary = onSecondary,
             secondaryContainer = secondaryContainer,
             onSecondaryContainer = onSecondaryContainer,
-            tertiary = tertiary,
-            onTertiary = onTertiary,
-            tertiaryContainer = tertiaryContainer,
-            onTertiaryContainer = onTertiaryContainer,
-            error = error,
-            onError = onError,
-            errorContainer = errorContainer,
-            onErrorContainer = onErrorContainer,
-            background = background,
-            onBackground = onBackground,
-            surface = surface,
-            onSurface = onSurface,
-            surfaceVariant = surfaceVariant,
-            onSurfaceVariant = onSurfaceVariant,
-            outline = outline,
-            outlineVariant = outlineVariant,
-            inverseSurface = inverseSurface,
-            inverseOnSurface = inverseOnSurface,
-            inversePrimary = inversePrimary,
-            scrim = Color(0x99000000),
-            surfaceTint = surfaceTint,
-            surfaceBright = surfaceBright,
-            surfaceDim = surfaceDim,
-            surfaceContainer = surfaceContainer,
-            surfaceContainerHigh = surfaceContainerHigh,
-            surfaceContainerHighest = surfaceContainerHighest,
-            surfaceContainerLow = surfaceContainerLow,
-            surfaceContainerLowest = surfaceContainerLowest
+        // Ensure other colors are consistent with a dark theme
+        onSurface = Color.White,
+        onSurfaceVariant = Color.White.copy(alpha = 0.7f),
+        onBackground = Color.White
     )
 }
 

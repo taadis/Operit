@@ -2337,4 +2337,103 @@ open class DebuggerFileSystemTools(context: Context) : AccessibilityFileSystemTo
             )
         }
     }
+
+    /** Write base64 encoded content to a binary file */
+    override suspend fun writeFileBinary(tool: AITool): ToolResult {
+        val path = tool.parameters.find { it.name == "path" }?.value ?: ""
+        val base64Content = tool.parameters.find { it.name == "base64Content" }?.value ?: ""
+
+        if (path.isBlank()) {
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                    FileOperationData(
+                            operation = "write_binary",
+                            path = "",
+                            successful = false,
+                            details = "Path parameter is required"
+                    ),
+                    error = "Path parameter is required"
+            )
+        }
+
+        return try {
+            // Ensure parent directory exists
+            val directory = File(path).parent
+            if (directory != null) {
+                AndroidShellExecutor.executeShellCommand("mkdir -p '$directory'")
+            }
+
+            // Write content using echo and base64 decode
+            val writeResult =
+                    AndroidShellExecutor.executeShellCommand(
+                            "echo '$base64Content' | base64 -d > '$path'"
+                    )
+
+            if (!writeResult.success) {
+                return ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result =
+                        FileOperationData(
+                                operation = "write_binary",
+                                path = path,
+                                successful = false,
+                                details = "Failed to write binary file: ${writeResult.stderr}"
+                        ),
+                        error = "Failed to write binary file: ${writeResult.stderr}"
+                )
+            }
+
+            // Verify write was successful
+            val sizeResult =
+                    AndroidShellExecutor.executeShellCommand("stat -c %s '$path' 2>/dev/null || echo '0'")
+            val size = sizeResult.stdout.trim().toLongOrNull() ?: 0
+            val originalSize =
+                    android.util.Base64.decode(base64Content, android.util.Base64.NO_WRAP).size
+
+            if (size.toLong() != originalSize.toLong()) {
+                 return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                    FileOperationData(
+                            operation = "write_binary",
+                            path = path,
+                            successful = false,
+                            details = "Write completed but file size mismatch. Expected: $originalSize, Got: $size. Possible write failure."
+                    ),
+                    error = "Write completed but file size mismatch. Expected: $originalSize, Got: $size. Possible write failure."
+                )
+            }
+
+            return ToolResult(
+                    toolName = tool.name,
+                    success = true,
+                    result =
+                    FileOperationData(
+                            operation = "write_binary",
+                            path = path,
+                            successful = true,
+                            details = "Binary content written to $path"
+                    ),
+                    error = ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error writing binary file", e)
+            return ToolResult(
+                    toolName = tool.name,
+                    success = false,
+                    result =
+                    FileOperationData(
+                            operation = "write_binary",
+                            path = path,
+                            successful = false,
+                            details = "Error writing binary file: ${e.message}"
+                    ),
+                    error = "Error writing binary file: ${e.message}"
+            )
+        }
+    }
 }

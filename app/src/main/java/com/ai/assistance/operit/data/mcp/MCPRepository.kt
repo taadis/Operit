@@ -923,6 +923,52 @@ class MCPRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Adds a new remote server to the repository.
+     *
+     * @param server The remote server to add.
+     */
+    suspend fun addRemoteServer(server: MCPServer) {
+        withContext(Dispatchers.IO) {
+            // Ensure this is a remote server
+            if (server.type != "remote") {
+                Log.e(TAG, "addRemoteServer called with a non-remote server: ${server.id}")
+                return@withContext
+            }
+
+            // Add to the main list if not already present
+            if (_mcpServers.value.none { it.id == server.id }) {
+                val uiServer = UIMCPServer(
+                    id = server.id,
+                    name = server.name,
+                    description = server.description,
+                    logoUrl = server.logoUrl,
+                    stars = server.stars,
+                    category = server.category,
+                    requiresApiKey = server.requiresApiKey,
+                    author = server.author,
+                    isVerified = server.isVerified,
+                    isInstalled = server.isInstalled,
+                    version = server.version,
+                    updatedAt = server.updatedAt,
+                    longDescription = server.longDescription,
+                    repoUrl = server.repoUrl,
+                    type = server.type,
+                    host = server.host,
+                    port = server.port
+                )
+                _mcpServers.value = _mcpServers.value + uiServer
+                loadedServerIds.add(server.id)
+            }
+            
+            // Use the plugin manager to "install" the remote server, which just saves its metadata
+            pluginManager.installRemotePlugin(server)
+            
+            // a little delay to ensure the UI updates
+            syncInstalledStatus()
+        }
+    }
+
     // Initialize method to be called at app startup
     suspend fun initialize() {
         withContext(Dispatchers.IO) {

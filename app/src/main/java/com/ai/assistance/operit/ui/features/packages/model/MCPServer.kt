@@ -17,6 +17,11 @@ data class MCPServer(
         val longDescription: String = "",
         val repoUrl: String = "",
 
+        // 新增字段以支持远程服务
+        val type: String = "local", // "local" or "remote"
+        val host: String? = null,
+        val port: Int? = null,
+
         // 新增字段，支持标准格式
         val isTested: Boolean = false, // 是否通过测试
         val isStable: Boolean = false, // 是否标记为稳定

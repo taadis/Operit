@@ -160,27 +160,77 @@ class MCPStarter(private val context: Context) {
 
             statusCallback(StartStatus.InProgress("Starting plugin: $pluginId"))
 
-            // Get plugin config
+            val mcpRepository = MCPRepository(context)
+            val pluginInfo = mcpRepository.getInstalledPluginInfo(pluginId)
+            if (pluginInfo == null) {
+                statusCallback(StartStatus.Error("Plugin info not found: $pluginId"))
+                return false
+            }
+
+            val serviceType = pluginInfo.getType() ?: "local"
+            val serverName = pluginInfo.getOriginalName()?.replace(" ", "_")?.lowercase() ?: pluginId.split("/").last().lowercase()
+
+            // Handle remote services differently
+            if (serviceType == "remote") {
+                val host = pluginInfo.getHost()
+                val port = pluginInfo.getPort()
+
+                if (host == null || port == null) {
+                    statusCallback(StartStatus.Error("Remote service is missing host or port: $pluginId"))
+                    return false
+                }
+                
+                if (!initBridge()) {
+                    statusCallback(StartStatus.Error("Failed to initialize bridge for remote service"))
+                    return false
+                }
+
+                val bridge = MCPBridge(context)
+
+                // Register remote service with the bridge
+                val registerResult = bridge.registerMcpService(
+                    name = serverName,
+                    type = "remote",
+                    host = host,
+                    port = port,
+                    description = "Remote MCP Server: $pluginId"
+                )
+
+                if (registerResult == null || !registerResult.optBoolean("success", false)) {
+                    statusCallback(StartStatus.Error("Failed to register remote MCP service"))
+                    return false
+                }
+                
+                // "Spawn" the remote service to trigger a connection
+                val spawnResult = bridge.spawnMcpService(serverName)
+                if (spawnResult == null || !spawnResult.optBoolean("success", false)) {
+                     statusCallback(StartStatus.Error("Failed to connect to remote MCP service"))
+                    return false
+                }
+
+                statusCallback(StartStatus.Success("Remote service $pluginId connected successfully"))
+                return true
+            }
+
+            // --- Existing logic for local plugins ---
             val mcpLocalServer =
                     com.ai.assistance.operit.data.mcp.MCPLocalServer.getInstance(context)
             val pluginConfig = mcpLocalServer.getPluginConfig(pluginId)
             val config = MCPVscodeConfig.fromJson(pluginConfig)
-            val serverName =
-                    extractServerNameFromConfig(pluginConfig)
-                            ?: pluginId.split("/").last().lowercase()
+            val extractedServerName = extractServerNameFromConfig(pluginConfig) ?: serverName
 
             // Get server command and args
-            val serverConfig = config?.mcpServers?.get(serverName)
+            val serverConfig = config?.mcpServers?.get(extractedServerName)
             if (serverConfig == null) {
                 statusCallback(StartStatus.Error("Invalid plugin config: $pluginId"))
                 return false
             }
 
             // Register server regardless of whether it's already running
-            registerServerIfNeeded(serverName, serverConfig, pluginId)
+            registerServerIfNeeded(extractedServerName, serverConfig, pluginId)
 
             // Check if plugin service is already running
-            if (isServerRunning(serverName)) {
+            if (isServerRunning(extractedServerName)) {
                 statusCallback(StartStatus.Success("Plugin $pluginId is already running"))
                 return true
             }
@@ -215,7 +265,7 @@ class MCPStarter(private val context: Context) {
             // Register MCP service
             val registerResult =
                     bridge.registerMcpService(
-                            name = serverName,
+                            name = extractedServerName,
                             command = serverConfig.command,
                             args = serverConfig.args,
                             description = "MCP Server: $pluginId",
@@ -236,7 +286,7 @@ class MCPStarter(private val context: Context) {
                         put(
                                 "params",
                                 JSONObject().apply {
-                                    put("name", serverName)
+                                    put("name", extractedServerName)
                                     put("command", "bash")
                                     put(
                                             "args",
@@ -270,7 +320,7 @@ class MCPStarter(private val context: Context) {
             delay(3000) // Wait for service to start
 
             // Final check
-            val pingResult = kotlinx.coroutines.runBlocking { bridge.pingMcpService(serverName) }
+            val pingResult = kotlinx.coroutines.runBlocking { bridge.pingMcpService(extractedServerName) }
 
             if (pingResult != null) {
                 val result = pingResult.optJSONObject("result")

@@ -83,6 +83,11 @@ interface Response {
     text(): Promise<string>;
 
     /**
+     * Get response body as Base64 encoded string
+     */
+    bodyAsBase64(): Promise<string>;
+
+    /**
      * Check if response was successful (status 200-299)
      */
     isSuccessful(): boolean;

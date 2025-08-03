@@ -33,8 +33,10 @@ import java.text.DecimalFormat
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.FunctionType
 import com.ai.assistance.operit.data.preferences.ApiPreferences
+import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.data.repository.ChatHistoryManager
 import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.Color
 
 // 保存滑动状态变量，使其跨重组保持
 private val SettingsScreenScrollPosition = mutableStateOf(0)
@@ -56,6 +58,7 @@ fun SettingsScreen(
 ) {
         val context = LocalContext.current
         val apiPreferences = remember { ApiPreferences(context) }
+        val userPreferences = remember { UserPreferencesManager(context) }
         val scope = rememberCoroutineScope()
 
         // 创建和记住滚动状态，设置为上次保存的位置
@@ -74,6 +77,8 @@ fun SettingsScreen(
         val summaryTokenThreshold = apiPreferences.summaryTokenThresholdFlow.collectAsState(initial = ApiPreferences.DEFAULT_SUMMARY_TOKEN_THRESHOLD).value
         val contextLength = apiPreferences.contextLengthFlow.collectAsState(initial = ApiPreferences.DEFAULT_CONTEXT_LENGTH).value
 
+        val hasBackgroundImage = userPreferences.useBackgroundImage.collectAsState(initial = false).value
+
         // Mutable state for editing
         var showFpsCounterInput by remember { mutableStateOf(showFpsCounter) }
         var keepScreenOnInput by remember { mutableStateOf(keepScreenOn) }
@@ -89,6 +94,18 @@ fun SettingsScreen(
                 contextLengthInput = contextLength
         }
 
+        val cardContainerColor = if (hasBackgroundImage) {
+                MaterialTheme.colorScheme.surface
+        } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        }
+
+        val componentBackgroundColor = if (hasBackgroundImage) {
+                MaterialTheme.colorScheme.surface
+        } else {
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+        }
+
         Column(
                 modifier = Modifier.fillMaxSize()
                         .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -97,7 +114,8 @@ fun SettingsScreen(
                 // ======= 个性化配置 =======
                 SettingsSection(
                         title = stringResource(id = R.string.settings_section_personalization),
-                        icon = Icons.Default.Person
+                        icon = Icons.Default.Person,
+                        containerColor = cardContainerColor
                 ) {
                         CompactSettingsItem(
                                 title = stringResource(id = R.string.settings_user_preferences),
@@ -124,7 +142,8 @@ fun SettingsScreen(
                 // ======= AI模型配置 =======
                 SettingsSection(
                         title = stringResource(id = R.string.settings_section_ai_model),
-                        icon = Icons.Default.Settings
+                        icon = Icons.Default.Settings,
+                        containerColor = cardContainerColor
                 ) {
                         CompactSettingsItem(
                                 title = stringResource(id = R.string.settings_model_parameters),
@@ -158,7 +177,8 @@ fun SettingsScreen(
                 // ======= 提示词配置 =======
                 SettingsSection(
                         title = stringResource(R.string.settings_prompt_section),
-                        icon = Icons.Default.Message
+                        icon = Icons.Default.Message,
+                        containerColor = cardContainerColor
                 ) {
                         CompactSettingsItem(
                                 title = stringResource(R.string.settings_prompt_title),
@@ -178,7 +198,8 @@ fun SettingsScreen(
                 // ======= 显示和行为设置 =======
                 SettingsSection(
                         title = stringResource(id = R.string.settings_section_display),
-                        icon = Icons.Default.Visibility
+                        icon = Icons.Default.Visibility,
+                        containerColor = cardContainerColor
                 ) {
                         // 滑块控件
                         CompactSlider(
@@ -195,7 +216,8 @@ fun SettingsScreen(
                                 valueRange = 1f..1024f,
                                 steps = 1022,
                                 decimalFormatPattern = "#.#",
-                                unitText = "k"
+                                unitText = "k",
+                                backgroundColor = componentBackgroundColor
                         )
 
                         CompactSlider(
@@ -211,7 +233,8 @@ fun SettingsScreen(
                                 },
                                 valueRange = 0.1f..0.95f,
                                 steps = 84,
-                                decimalFormatPattern = "#.##"
+                                decimalFormatPattern = "#.##",
+                                backgroundColor = componentBackgroundColor
                         )
 
                         // 开关控件
@@ -220,7 +243,7 @@ fun SettingsScreen(
                                         .fillMaxWidth()
                                         .padding(top = 8.dp)
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                                        .background(componentBackgroundColor)
                                         .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                                 CompactToggleWithDescription(
@@ -254,7 +277,8 @@ fun SettingsScreen(
                 // ======= 数据和权限 =======
                 SettingsSection(
                         title = "数据和权限",
-                        icon = Icons.Default.Security
+                        icon = Icons.Default.Security,
+                        containerColor = cardContainerColor
                 ) {
                         CompactSettingsItem(
                                 title = stringResource(id = R.string.settings_tool_permissions),
@@ -272,7 +296,7 @@ fun SettingsScreen(
                 }
 
                 // ======= Token使用统计 =======
-                TokenUsageCompactCard(context, apiPreferences, scope) {
+                TokenUsageCompactCard(context, apiPreferences, scope, cardContainerColor) {
                         showSaveSuccessMessage = true
                 }
 
@@ -285,6 +309,7 @@ fun SettingsScreen(
 private fun SettingsSection(
         title: String,
         icon: ImageVector,
+        containerColor: Color,
         content: @Composable ColumnScope.() -> Unit
 ) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
@@ -312,7 +337,7 @@ private fun SettingsSection(
                 Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                containerColor = containerColor
                         )
                 ) {
                         Column(
@@ -418,7 +443,8 @@ private fun CompactSlider(
         valueRange: ClosedFloatingPointRange<Float>,
         steps: Int,
         decimalFormatPattern: String,
-        unitText: String? = null
+        unitText: String? = null,
+        backgroundColor: Color
 ) {
         val focusManager = LocalFocusManager.current
         val df = remember(decimalFormatPattern) { DecimalFormat(decimalFormatPattern) }
@@ -431,7 +457,7 @@ private fun CompactSlider(
                         .fillMaxWidth()
                         .padding(bottom = 4.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                        .background(backgroundColor)
                         .padding(8.dp)
         ) {
                 Row(
@@ -525,6 +551,7 @@ private fun TokenUsageCompactCard(
         context: android.content.Context,
         apiPreferences: ApiPreferences,
         scope: kotlinx.coroutines.CoroutineScope,
+        containerColor: Color,
         onSuccess: () -> Unit
 ) {
     // State to hold token data for all function types
@@ -563,7 +590,8 @@ private fun TokenUsageCompactCard(
 
     SettingsSection(
             title = stringResource(id = R.string.settings_section_usage),
-            icon = Icons.Default.Analytics
+            icon = Icons.Default.Analytics,
+            containerColor = containerColor
     ) {
         Column(modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))

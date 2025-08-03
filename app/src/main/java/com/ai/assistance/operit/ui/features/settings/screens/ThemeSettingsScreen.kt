@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
@@ -161,6 +163,12 @@ fun ThemeSettingsScreen() {
     val avatarShape = preferencesManager.avatarShape.collectAsState(initial = UserPreferencesManager.AVATAR_SHAPE_CIRCLE).value
     val avatarCornerRadius = preferencesManager.avatarCornerRadius.collectAsState(initial = 8f).value
 
+    // Collect on color mode
+    val onColorMode = preferencesManager.onColorMode.collectAsState(initial = UserPreferencesManager.ON_COLOR_MODE_AUTO).value
+
+    // Collect custom chat title
+    val customChatTitle = preferencesManager.customChatTitle.collectAsState(initial = null).value
+
 
     // Default color definitions
     val defaultPrimaryColor = Color.Magenta.toArgb()
@@ -224,6 +232,12 @@ fun ThemeSettingsScreen() {
     var aiAvatarUriInput by remember { mutableStateOf(aiAvatarUri) }
     var avatarShapeInput by remember { mutableStateOf(avatarShape) }
     var avatarCornerRadiusInput by remember { mutableStateOf(avatarCornerRadius) }
+
+    // On color mode state
+    var onColorModeInput by remember { mutableStateOf(onColorMode) }
+
+    // Custom chat title state
+    var customChatTitleInput by remember(customChatTitle) { mutableStateOf(customChatTitle ?: "") }
 
     var showColorPicker by remember { mutableStateOf(false) }
     var currentColorPickerMode by remember { mutableStateOf("primary") }
@@ -564,7 +578,9 @@ fun ThemeSettingsScreen() {
             userAvatarUri,
             aiAvatarUri,
             avatarShape,
-            avatarCornerRadius
+            avatarCornerRadius,
+            onColorMode,
+            customChatTitle
     ) {
         themeModeInput = themeMode
         useSystemThemeInput = useSystemTheme
@@ -601,6 +617,8 @@ fun ThemeSettingsScreen() {
         aiAvatarUriInput = aiAvatarUri
         avatarShapeInput = avatarShape
         avatarCornerRadiusInput = avatarCornerRadius
+        onColorModeInput = onColorMode
+        customChatTitleInput = customChatTitle ?: ""
     }
 
     // Avatar picker and cropper launcher
@@ -1197,6 +1215,56 @@ fun ThemeSettingsScreen() {
                                 onClick = {
                                     currentColorPickerMode = "secondary"
                                     showColorPicker = true
+                                }
+                        )
+                    }
+
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    Text(
+                        text = "主题文字颜色",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ThemeModeOption(
+                            title = "自动",
+                            selected = onColorModeInput == UserPreferencesManager.ON_COLOR_MODE_AUTO,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                onColorModeInput = UserPreferencesManager.ON_COLOR_MODE_AUTO
+                                scope.launch {
+                                    preferencesManager.saveThemeSettings(onColorMode = UserPreferencesManager.ON_COLOR_MODE_AUTO)
+                                    showSaveSuccessMessage = true
+                                }
+                            }
+                        )
+                        ThemeModeOption(
+                            title = "浅色",
+                            selected = onColorModeInput == UserPreferencesManager.ON_COLOR_MODE_LIGHT,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                onColorModeInput = UserPreferencesManager.ON_COLOR_MODE_LIGHT
+                                scope.launch {
+                                    preferencesManager.saveThemeSettings(onColorMode = UserPreferencesManager.ON_COLOR_MODE_LIGHT)
+                                    showSaveSuccessMessage = true
+                                }
+                            }
+                        )
+                        ThemeModeOption(
+                            title = "深色",
+                            selected = onColorModeInput == UserPreferencesManager.ON_COLOR_MODE_DARK,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                onColorModeInput = UserPreferencesManager.ON_COLOR_MODE_DARK
+                                scope.launch {
+                                    preferencesManager.saveThemeSettings(onColorMode = UserPreferencesManager.ON_COLOR_MODE_DARK)
+                                    showSaveSuccessMessage = true
+                                }
                                 }
                         )
                     }
@@ -2076,6 +2144,8 @@ fun ThemeSettingsScreen() {
                         aiAvatarUriInput = null
                         avatarShapeInput = UserPreferencesManager.AVATAR_SHAPE_CIRCLE
                         avatarCornerRadiusInput = 8f
+                        onColorModeInput = UserPreferencesManager.ON_COLOR_MODE_AUTO
+                        customChatTitleInput = ""
                         showSaveSuccessMessage = true
                     }
                 },
@@ -2158,6 +2228,33 @@ fun ThemeSettingsScreen() {
                     },
                     onDismiss = { showColorPicker = false }
             )
+        }
+
+        // ======= SECTION: UI TEXT =======
+        ThemeSectionTitle(
+            title = "界面文本",
+            icon = Icons.Default.TextFields
+        )
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                OutlinedTextField(
+                    value = customChatTitleInput,
+                    onValueChange = { customChatTitleInput = it },
+                    label = { Text("自定义聊天标题") },
+                    placeholder = { Text("例如：AI助手") },
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            scope.launch {
+                                preferencesManager.saveThemeSettings(customChatTitle = customChatTitleInput)
+                                showSaveSuccessMessage = true
+                            }
+                        }) {
+                            Icon(Icons.Default.Save, contentDescription = "保存标题")
+                        }
+                    }
+                )
+            }
         }
     }
 }

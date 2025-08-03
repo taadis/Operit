@@ -91,7 +91,7 @@
     <string name="danger_zone">Danger Zone</string>
     <string name="chat_statistics">Chat Statistics</string>
     <string name="current_chats">Currently %1$d chat records</string>
-    <string name="backup_location">Backup files are saved in the \"Downloads/Operit\" folder</string>
+    <string name="backup_location">Backup files are saved in the \"Download/Operit\" folder</string>
     <string name="faq_backup">FAQ</string>
     
     <!-- Terminal Screen -->
