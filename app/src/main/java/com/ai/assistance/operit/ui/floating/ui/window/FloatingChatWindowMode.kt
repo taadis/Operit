@@ -413,7 +413,6 @@ fun FloatingChatWindowMode(floatContext: FloatContext) {
                                                             thinkingBackgroundColor =
                                                                     thinkingBackgroundColor,
                                                             thinkingTextColor = thinkingTextColor,
-                                                            isEditMode = false, // 悬浮窗不支持编辑模式
                                                             onSelectMessageToEdit = null,
                                                             onCopyMessage = null
                                                     )

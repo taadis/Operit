@@ -7,6 +7,7 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
@@ -48,6 +50,8 @@ import com.ai.assistance.operit.ui.features.settings.components.ColorPickerDialo
 import com.ai.assistance.operit.ui.features.settings.components.ColorSelectionItem
 import com.ai.assistance.operit.ui.features.settings.components.MediaTypeOption
 import com.ai.assistance.operit.ui.features.settings.components.ThemeModeOption
+import com.ai.assistance.operit.ui.features.settings.components.ChatStyleOption
+import com.ai.assistance.operit.ui.features.settings.components.AvatarPicker
 import com.ai.assistance.operit.ui.theme.getTextColorForBackground
 import com.ai.assistance.operit.util.FileUtils
 import com.canhub.cropper.CropImageContract
@@ -144,6 +148,20 @@ fun ThemeSettingsScreen() {
     val backgroundBlurRadius =
             preferencesManager.backgroundBlurRadius.collectAsState(initial = 10f).value
 
+    // Collect chat style setting
+    val chatStyle = preferencesManager.chatStyle.collectAsState(initial = UserPreferencesManager.CHAT_STYLE_CURSOR).value
+
+    // Collect new display settings
+    val showThinkingProcess = preferencesManager.showThinkingProcess.collectAsState(initial = true).value
+    val showStatusTags = preferencesManager.showStatusTags.collectAsState(initial = true).value
+
+    // Collect avatar settings
+    val userAvatarUri = preferencesManager.customUserAvatarUri.collectAsState(initial = null).value
+    val aiAvatarUri = preferencesManager.customAiAvatarUri.collectAsState(initial = null).value
+    val avatarShape = preferencesManager.avatarShape.collectAsState(initial = UserPreferencesManager.AVATAR_SHAPE_CIRCLE).value
+    val avatarCornerRadius = preferencesManager.avatarCornerRadius.collectAsState(initial = 8f).value
+
+
     // Default color definitions
     val defaultPrimaryColor = Color.Magenta.toArgb()
     val defaultSecondaryColor = Color.Blue.toArgb()
@@ -193,6 +211,19 @@ fun ThemeSettingsScreen() {
     // Background blur state
     var useBackgroundBlurInput by remember { mutableStateOf(useBackgroundBlur) }
     var backgroundBlurRadiusInput by remember { mutableStateOf(backgroundBlurRadius) }
+
+    // Chat style state
+    var chatStyleInput by remember { mutableStateOf(chatStyle) }
+
+    // New display settings state
+    var showThinkingProcessInput by remember { mutableStateOf(showThinkingProcess) }
+    var showStatusTagsInput by remember { mutableStateOf(showStatusTags) }
+
+    // Avatar state
+    var userAvatarUriInput by remember { mutableStateOf(userAvatarUri) }
+    var aiAvatarUriInput by remember { mutableStateOf(aiAvatarUri) }
+    var avatarShapeInput by remember { mutableStateOf(avatarShape) }
+    var avatarCornerRadiusInput by remember { mutableStateOf(avatarCornerRadius) }
 
     var showColorPicker by remember { mutableStateOf(false) }
     var currentColorPickerMode by remember { mutableStateOf("primary") }
@@ -287,8 +318,9 @@ fun ThemeSettingsScreen() {
                     if (croppedUri != null) {
                         scope.launch {
                             val internalUri =
-                                    FileUtils.copyFileToInternalStorage(context, croppedUri)
+                                    FileUtils.copyFileToInternalStorage(context, croppedUri, "background")
                             if (internalUri != null) {
+                                Log.d("ThemeSettings", "Background image saved to: $internalUri")
                                 backgroundImageUriInput = internalUri.toString()
                                 backgroundMediaTypeInput = UserPreferencesManager.MEDIA_TYPE_IMAGE
                                 preferencesManager.saveThemeSettings(
@@ -431,9 +463,10 @@ fun ThemeSettingsScreen() {
 
                         // Video file size acceptable, directly save
                         scope.launch {
-                            val internalUri = FileUtils.copyFileToInternalStorage(context, uri)
+                            val internalUri = FileUtils.copyFileToInternalStorage(context, uri, "background_video")
 
                             if (internalUri != null) {
+                                Log.d("ThemeSettings", "Background video saved to: $internalUri")
                                 backgroundImageUriInput = internalUri.toString()
                                 backgroundMediaTypeInput = UserPreferencesManager.MEDIA_TYPE_VIDEO
                                 preferencesManager.saveThemeSettings(
@@ -473,8 +506,9 @@ fun ThemeSettingsScreen() {
                     // Try to copy to internal storage
                     val uri = Uri.parse(uriString)
                     scope.launch {
-                        val internalUri = FileUtils.copyFileToInternalStorage(context, uri)
+                        val internalUri = FileUtils.copyFileToInternalStorage(context, uri, "migrated_background")
                         if (internalUri != null) {
+                            Log.d("ThemeSettings", "Migrated background image to: $internalUri")
                             // Update the URI in preferences
                             preferencesManager.saveThemeSettings(
                                     backgroundImageUri = internalUri.toString()
@@ -523,7 +557,14 @@ fun ThemeSettingsScreen() {
             chatHeaderHistoryIconColor,
             chatHeaderPipIconColor,
             useBackgroundBlur,
-            backgroundBlurRadius
+            backgroundBlurRadius,
+            chatStyle,
+            showThinkingProcess,
+            showStatusTags,
+            userAvatarUri,
+            aiAvatarUri,
+            avatarShape,
+            avatarCornerRadius
     ) {
         themeModeInput = themeMode
         useSystemThemeInput = useSystemTheme
@@ -553,7 +594,75 @@ fun ThemeSettingsScreen() {
         }
         useBackgroundBlurInput = useBackgroundBlur
         backgroundBlurRadiusInput = backgroundBlurRadius
+        chatStyleInput = chatStyle
+        showThinkingProcessInput = showThinkingProcess
+        showStatusTagsInput = showStatusTags
+        userAvatarUriInput = userAvatarUri
+        aiAvatarUriInput = aiAvatarUri
+        avatarShapeInput = avatarShape
+        avatarCornerRadiusInput = avatarCornerRadius
     }
+
+    // Avatar picker and cropper launcher
+    var avatarPickerMode by remember { mutableStateOf("user") }
+
+    val cropAvatarLauncher = rememberLauncherForActivityResult(CropImageContract()) { result ->
+        if (result.isSuccessful) {
+            val croppedUri = result.uriContent
+            if (croppedUri != null) {
+                scope.launch {
+                    val uniqueName = if (avatarPickerMode == "user") "user_avatar" else "ai_avatar"
+                    val internalUri = FileUtils.copyFileToInternalStorage(context, croppedUri, uniqueName)
+                    if (internalUri != null) {
+                        if (avatarPickerMode == "user") {
+                            Log.d("ThemeSettings", "User avatar saved to: $internalUri")
+                            userAvatarUriInput = internalUri.toString()
+                            preferencesManager.saveThemeSettings(customUserAvatarUri = internalUri.toString())
+                        } else { // "ai"
+                            Log.d("ThemeSettings", "AI avatar saved to: $internalUri")
+                            aiAvatarUriInput = internalUri.toString()
+                            preferencesManager.saveThemeSettings(customAiAvatarUri = internalUri.toString())
+                        }
+                        showSaveSuccessMessage = true
+                        Toast.makeText(context, "头像已更新", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, context.getString(R.string.theme_copy_failed), Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        } else if (result.error != null) {
+            Toast.makeText(context, "头像裁剪失败: ${result.error!!.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun launchAvatarCrop(uri: Uri) {
+        val cropOptions = CropImageContractOptions(
+            uri,
+            CropImageOptions().apply {
+                guidelines = com.canhub.cropper.CropImageView.Guidelines.ON
+                outputCompressFormat = android.graphics.Bitmap.CompressFormat.PNG
+                outputCompressQuality = 90
+                fixAspectRatio = true
+                aspectRatioX = 1
+                aspectRatioY = 1
+                cropMenuCropButtonTitle = context.getString(R.string.theme_crop_done)
+                activityTitle = "裁剪头像"
+                // Basic theming, can be expanded later
+                toolbarColor = Color.Gray.toArgb()
+                toolbarTitleColor = Color.White.toArgb()
+            }
+        )
+        cropAvatarLauncher.launch(cropOptions)
+    }
+
+    val avatarImagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            launchAvatarCrop(uri)
+        }
+    }
+
 
     // Get background image state to check if we need opaque cards
     val hasBackgroundImage =
@@ -1172,6 +1281,219 @@ fun ThemeSettingsScreen() {
             }
         }
 
+        // ======= SECTION 2: CHAT STYLE =======
+        ThemeSectionTitle(
+            title = "聊天风格",
+            icon = Icons.Default.ColorLens // 您可以根据需要更改图标
+        )
+
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "选择聊天界面风格",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ChatStyleOption(
+                        title = "Cursor",
+                        selected = chatStyleInput == UserPreferencesManager.CHAT_STYLE_CURSOR,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        chatStyleInput = UserPreferencesManager.CHAT_STYLE_CURSOR
+                        scope.launch {
+                            preferencesManager.saveThemeSettings(chatStyle = UserPreferencesManager.CHAT_STYLE_CURSOR)
+                            showSaveSuccessMessage = true
+                        }
+                    }
+
+                    ChatStyleOption(
+                        title = "Bubble",
+                        selected = chatStyleInput == UserPreferencesManager.CHAT_STYLE_BUBBLE,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        chatStyleInput = UserPreferencesManager.CHAT_STYLE_BUBBLE
+                        scope.launch {
+                            preferencesManager.saveThemeSettings(chatStyle = UserPreferencesManager.CHAT_STYLE_BUBBLE)
+                            showSaveSuccessMessage = true
+                        }
+                    }
+                }
+            }
+        }
+
+        // ======= SECTION 4: DISPLAY OPTIONS =======
+        ThemeSectionTitle(
+            title = "显示选项",
+            icon = Icons.Default.ColorLens // Replace with a more appropriate icon if available
+        )
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Show thinking process switch
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "显示思考过程", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = "切换AI响应中 <think> 标签的可见性",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = showThinkingProcessInput,
+                        onCheckedChange = {
+                            showThinkingProcessInput = it
+                            scope.launch {
+                                preferencesManager.saveThemeSettings(showThinkingProcess = it)
+                                showSaveSuccessMessage = true
+                            }
+                        }
+                    )
+                }
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                // Show status tags switch
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "显示任务状态标签", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = "切换任务完成和等待状态标签的可见性",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = showStatusTagsInput,
+                        onCheckedChange = {
+                            showStatusTagsInput = it
+                            scope.launch {
+                                preferencesManager.saveThemeSettings(showStatusTags = it)
+                                showSaveSuccessMessage = true
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
+        // ======= SECTION 5: AVATAR CUSTOMIZATION =======
+        ThemeSectionTitle(
+            title = "自定义头像",
+            icon = Icons.Default.Person // Replace with a more appropriate icon if available
+        )
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = cardModifier) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // User Avatar Picker
+                    AvatarPicker(
+                        label = "用户头像",
+                        avatarUri = userAvatarUriInput,
+                        onAvatarChange = {
+                            avatarPickerMode = "user"
+                            avatarImagePicker.launch("image/*")
+                        },
+                        onAvatarReset = {
+                            userAvatarUriInput = null
+                            scope.launch {
+                                preferencesManager.saveThemeSettings(customUserAvatarUri = "")
+                            }
+                        }
+                    )
+
+                    // AI Avatar Picker
+                    AvatarPicker(
+                        label = "AI 头像",
+                        avatarUri = aiAvatarUriInput,
+                        onAvatarChange = {
+                            avatarPickerMode = "ai"
+                            avatarImagePicker.launch("image/*")
+                        },
+                        onAvatarReset = {
+                            aiAvatarUriInput = null
+                            scope.launch {
+                                preferencesManager.saveThemeSettings(customAiAvatarUri = "")
+                            }
+                        }
+                    )
+                }
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Text(
+                    text = "头像形状",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ChatStyleOption(
+                        title = "圆形",
+                        selected = avatarShapeInput == UserPreferencesManager.AVATAR_SHAPE_CIRCLE,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        avatarShapeInput = UserPreferencesManager.AVATAR_SHAPE_CIRCLE
+                        scope.launch {
+                            preferencesManager.saveThemeSettings(avatarShape = UserPreferencesManager.AVATAR_SHAPE_CIRCLE)
+                            showSaveSuccessMessage = true
+                        }
+                    }
+                    ChatStyleOption(
+                        title = "方形",
+                        selected = avatarShapeInput == UserPreferencesManager.AVATAR_SHAPE_SQUARE,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        avatarShapeInput = UserPreferencesManager.AVATAR_SHAPE_SQUARE
+                        scope.launch {
+                            preferencesManager.saveThemeSettings(avatarShape = UserPreferencesManager.AVATAR_SHAPE_SQUARE)
+                            showSaveSuccessMessage = true
+                        }
+                    }
+                }
+
+                AnimatedVisibility(visible = avatarShapeInput == UserPreferencesManager.AVATAR_SHAPE_SQUARE) {
+                    Column {
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        Text(
+                            text = "圆角半径: ${avatarCornerRadiusInput.toInt()}dp",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Slider(
+                            value = avatarCornerRadiusInput,
+                            onValueChange = { avatarCornerRadiusInput = it },
+                            valueRange = 0f..16f,
+                            onValueChangeFinished = {
+                                scope.launch {
+                                    preferencesManager.saveThemeSettings(avatarCornerRadius = avatarCornerRadiusInput)
+                                    showSaveSuccessMessage = true
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+
         // ======= SECTION 3: BACKGROUND CUSTOMIZATION =======
         ThemeSectionTitle(
                 title = stringResource(id = R.string.theme_title_background),
@@ -1747,6 +2069,13 @@ fun ThemeSettingsScreen() {
                         chatHeaderPipIconColorInput = Color.Gray.toArgb()
                         useBackgroundBlurInput = false
                         backgroundBlurRadiusInput = 10f
+                        chatStyleInput = UserPreferencesManager.CHAT_STYLE_CURSOR
+                        showThinkingProcessInput = true
+                        showStatusTagsInput = true
+                        userAvatarUriInput = null
+                        aiAvatarUriInput = null
+                        avatarShapeInput = UserPreferencesManager.AVATAR_SHAPE_CIRCLE
+                        avatarCornerRadiusInput = 8f
                         showSaveSuccessMessage = true
                     }
                 },

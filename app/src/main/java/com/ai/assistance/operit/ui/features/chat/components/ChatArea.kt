@@ -3,7 +3,6 @@ package com.ai.assistance.operit.ui.features.chat.components
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.StartOffset
@@ -11,14 +10,11 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,14 +31,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -50,35 +44,35 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.times
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.data.model.AiReference
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.model.PlanItem
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.ui.unit.Dp
+import com.ai.assistance.operit.ui.features.chat.components.style.cursor.CursorStyleChatMessage
+import com.ai.assistance.operit.ui.features.chat.components.style.bubble.BubbleStyleChatMessage
+
+enum class ChatStyle {
+    CURSOR,
+    BUBBLE
+}
 
 @Composable
 fun ChatArea(
@@ -103,7 +97,8 @@ fun ChatArea(
     onDeleteMessage: ((Int) -> Unit)? = null,
     onDeleteMessagesFrom: ((Int) -> Unit)? = null,
     messagesPerPage: Int = 10, // 每页显示的消息数量
-    topPadding: Dp = 0.dp
+    topPadding: Dp = 0.dp,
+    chatStyle: ChatStyle = ChatStyle.CURSOR // 新增参数，默认为CURSOR风格
 ) {
     // 记住当前深度状态，但当chatHistory发生变化时重置为1
     var currentDepth = remember(chatHistory) { mutableStateOf(1) }
@@ -170,7 +165,8 @@ fun ChatArea(
                         onSelectMessageToEdit = onSelectMessageToEdit,
                         onCopyMessage = onCopyMessage,
                         onDeleteMessage = onDeleteMessage,
-                        onDeleteMessagesFrom = onDeleteMessagesFrom
+                        onDeleteMessagesFrom = onDeleteMessagesFrom,
+                        chatStyle = chatStyle // 传递风格
                     )
                 }
 
@@ -214,7 +210,8 @@ private fun MessageItem(
     onSelectMessageToEdit: ((Int, ChatMessage, String) -> Unit)?,
     onCopyMessage: ((ChatMessage) -> Unit)?,
     onDeleteMessage: ((Int) -> Unit)?,
-    onDeleteMessagesFrom: ((Int) -> Unit)?
+    onDeleteMessagesFrom: ((Int) -> Unit)?,
+    chatStyle: ChatStyle // 新增参数
 ) {
     val context = LocalContext.current
     var showContextMenu by remember { mutableStateOf(false) }
@@ -230,19 +227,34 @@ private fun MessageItem(
                 onLongClick = { if (isActionable) showContextMenu = true },
             ),
     ) {
-        CursorStyleChatMessage(
-            message = message,
-            userMessageColor = userMessageColor,
-            aiMessageColor = aiMessageColor,
-            userTextColor = userTextColor,
-            aiTextColor = aiTextColor,
-            systemMessageColor = systemMessageColor,
-            systemTextColor = systemTextColor,
-            thinkingBackgroundColor = thinkingBackgroundColor,
-            thinkingTextColor = thinkingTextColor,
-            supportToolMarkup = true,
-            initialThinkingExpanded = true,
-        )
+        when (chatStyle) {
+            ChatStyle.CURSOR -> {
+                CursorStyleChatMessage(
+                    message = message,
+                    userMessageColor = userMessageColor,
+                    aiMessageColor = aiMessageColor,
+                    userTextColor = userTextColor,
+                    aiTextColor = aiTextColor,
+                    systemMessageColor = systemMessageColor,
+                    systemTextColor = systemTextColor,
+                    thinkingBackgroundColor = thinkingBackgroundColor,
+                    thinkingTextColor = thinkingTextColor,
+                    supportToolMarkup = true,
+                    initialThinkingExpanded = true,
+                )
+            }
+            ChatStyle.BUBBLE -> {
+                BubbleStyleChatMessage(
+                    message = message,
+                    userMessageColor = userMessageColor,
+                    aiMessageColor = aiMessageColor,
+                    userTextColor = userTextColor,
+                    aiTextColor = aiTextColor,
+                    systemMessageColor = systemMessageColor,
+                    systemTextColor = systemTextColor,
+                )
+            }
+        }
 
         DropdownMenu(
             expanded = showContextMenu,

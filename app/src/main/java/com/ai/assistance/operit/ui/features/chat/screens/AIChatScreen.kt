@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.tooling.preview.Preview
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.core.tools.AIToolHandler
 import com.ai.assistance.operit.data.model.AITool
@@ -51,8 +52,9 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Preview(showBackground = true)
 fun AIChatScreen(
-        padding: PaddingValues,
+        padding: PaddingValues = PaddingValues(),
         viewModel: ChatViewModel? = null,
         isFloatingMode: Boolean = false,
         onLoading: (Boolean) -> Unit = {},
@@ -108,6 +110,15 @@ fun AIChatScreen(
     val chatHeaderPipIconColor by preferencesManager.chatHeaderPipIconColor.collectAsState(initial = null)
     val chatHeaderOverlayMode by preferencesManager.chatHeaderOverlayMode.collectAsState(initial = false)
     val hasBackgroundImage = useBackgroundImage && backgroundImageUri != null
+
+    // Collect chat style from preferences
+    val chatStyleSetting by preferencesManager.chatStyle.collectAsState(initial = UserPreferencesManager.CHAT_STYLE_CURSOR)
+    val chatStyle = remember(chatStyleSetting) {
+        when (chatStyleSetting) {
+            UserPreferencesManager.CHAT_STYLE_BUBBLE -> ChatStyle.BUBBLE
+            else -> ChatStyle.CURSOR
+        }
+    }
 
     // 添加编辑按钮和编辑状态
     val editingMessageIndex = remember { mutableStateOf<Int?>(null) }
@@ -537,7 +548,8 @@ fun AIChatScreen(
                             chatHeaderTransparent = chatHeaderTransparent,
                             chatHeaderHistoryIconColor = chatHeaderHistoryIconColor,
                             chatHeaderPipIconColor = chatHeaderPipIconColor,
-                            chatHeaderOverlayMode = chatHeaderOverlayMode
+                            chatHeaderOverlayMode = chatHeaderOverlayMode,
+                            chatStyle = chatStyle // Pass chat style
                     )
 
                     // The settings bar is aligned to the bottom-end of the parent Box,

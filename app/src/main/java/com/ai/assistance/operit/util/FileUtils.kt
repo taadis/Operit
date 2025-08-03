@@ -7,6 +7,7 @@ import android.webkit.MimeTypeMap
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.util.UUID
 
 object FileUtils {
@@ -88,46 +89,46 @@ object FileUtils {
     }
 
     /**
-     * Copy a file from external storage to app's internal storage
-     * @param context The application context
-     * @param sourceUri The URI of the source file to copy
-     * @return The URI of the copied file or null if copying failed
+     * Copies a file from a given URI to the app's internal storage.
+     * This makes the file private to the app and ensures persistent access.
+     * @param context The context.
+     * @param uri The URI of the file to copy.
+     * @param uniqueName A unique name or prefix for the file to prevent overwriting.
+     * @return The URI of the copied file in internal storage, or null on failure.
      */
-    fun copyFileToInternalStorage(context: Context, sourceUri: Uri): Uri? {
+    fun copyFileToInternalStorage(context: Context, uri: Uri, uniqueName: String): Uri? {
+        var inputStream: InputStream? = null
+        var outputStream: FileOutputStream? = null
         try {
-            // Determine if this is a video file
-            val isVideo = isVideoFile(context, sourceUri)
-
-            // Choose appropriate directory
-            val mediaDir =
-                    File(
-                            context.filesDir,
-                            if (isVideo) BACKGROUND_VIDEOS_DIR else BACKGROUND_IMAGES_DIR
-                    )
-            if (!mediaDir.exists()) {
-                mediaDir.mkdirs()
+            inputStream = context.contentResolver.openInputStream(uri)
+            if (inputStream == null) {
+                Log.e("FileUtils", "Failed to open input stream for URI: $uri")
+                return null
             }
 
-            // Determine appropriate file extension
-            val extension = getFileExtension(context, sourceUri) ?: if (isVideo) "mp4" else "jpg"
+            // Use the unique name to create a distinct file
+            val file = File(context.filesDir, "${uniqueName}_${UUID.randomUUID()}.png")
+            outputStream = FileOutputStream(file)
 
-            // Create a unique filename to avoid conflicts
-            val fileName = "bg_media_${UUID.randomUUID()}.$extension"
-            val destFile = File(mediaDir, fileName)
-
-            // Copy the file
-            context.contentResolver.openInputStream(sourceUri)?.use { input ->
-                FileOutputStream(destFile).use { output -> input.copyTo(output) }
+            val buffer = ByteArray(4 * 1024) // 4K buffer
+            var read: Int
+            while (inputStream.read(buffer).also { read = it } != -1) {
+                outputStream.write(buffer, 0, read)
             }
-
-            // Clean up old media files (keeping the most recent one)
-            cleanOldBackgroundFiles(mediaDir, destFile.name)
-
-            // Return the URI for the internal file
-            return Uri.fromFile(destFile)
-        } catch (e: IOException) {
-            Log.e(TAG, "Error copying file to internal storage", e)
+            outputStream.flush()
+            
+            Log.d("FileUtils", "File copied successfully to internal storage: ${file.absolutePath}")
+            return Uri.fromFile(file)
+        } catch (e: Exception) {
+            Log.e("FileUtils", "Error copying file to internal storage", e)
             return null
+        } finally {
+            try {
+                inputStream?.close()
+                outputStream?.close()
+            } catch (e: Exception) {
+                Log.e("FileUtils", "Error closing streams", e)
+            }
         }
     }
 

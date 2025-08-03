@@ -11,6 +11,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -43,7 +44,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Close
@@ -55,6 +55,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.filled.Delete
 import com.ai.assistance.operit.ui.features.chat.components.MessageEditor
+
 
 @Composable
 fun ChatScreenContent(
@@ -94,7 +95,8 @@ fun ChatScreenContent(
         chatHeaderTransparent: Boolean,
         chatHeaderHistoryIconColor: Int?,
         chatHeaderPipIconColor: Int?,
-        chatHeaderOverlayMode: Boolean
+        chatHeaderOverlayMode: Boolean,
+        chatStyle: ChatStyle // Add chatStyle parameter
 ) {
     val density = LocalDensity.current
     var headerHeight by remember { mutableStateOf(0.dp) }
@@ -149,7 +151,8 @@ fun ChatScreenContent(
                         onSelectMessageToEdit = onSelectMessageToEditCallback,
                         onDeleteMessage = { index -> actualViewModel.deleteMessage(index) },
                         onDeleteMessagesFrom = { index -> actualViewModel.deleteMessagesFrom(index) },
-                        topPadding = headerHeight
+                        topPadding = headerHeight,
+                        chatStyle = chatStyle // Pass chat style
                 )
                 ChatScreenHeader(
                         modifier =
@@ -195,7 +198,8 @@ fun ChatScreenContent(
                         modifier = Modifier.fillMaxSize(),
                         onSelectMessageToEdit = onSelectMessageToEditCallback,
                         onDeleteMessage = { index -> actualViewModel.deleteMessage(index) },
-                        onDeleteMessagesFrom = { index -> actualViewModel.deleteMessagesFrom(index) }
+                        onDeleteMessagesFrom = { index -> actualViewModel.deleteMessagesFrom(index) },
+                        chatStyle = chatStyle // Pass chat style
                 )
             }
         }
@@ -343,23 +347,6 @@ fun ChatScreenContent(
         }
     }
 }
-
-@Composable
-fun ScrollToBottomButton(onClick: () -> Unit) {
-    SmallFloatingActionButton(
-            onClick = onClick,
-            modifier = Modifier.padding(end = 34.dp,bottom = 10.dp),
-            containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f),
-            contentColor = MaterialTheme.colorScheme.onSecondary
-    ) {
-        Icon(
-                imageVector = Icons.Default.KeyboardArrowDown,
-                contentDescription = "滚动到底部",
-                modifier = Modifier.size(18.dp)
-        )
-    }
-}
-
 
 @Composable
 fun ChatHistorySelectorPanel(

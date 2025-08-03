@@ -94,6 +94,9 @@ class UserPreferencesManager(private val context: Context) {
         private val USE_BACKGROUND_BLUR = booleanPreferencesKey("use_background_blur")
         private val BACKGROUND_BLUR_RADIUS = floatPreferencesKey("background_blur_radius")
 
+        // Chat style preference
+        private val CHAT_STYLE = stringPreferencesKey("chat_style")
+
         // 默认配置文件ID
         private const val DEFAULT_PROFILE_ID = "default"
 
@@ -111,6 +114,22 @@ class UserPreferencesManager(private val context: Context) {
         
         // 默认语言
         const val DEFAULT_LANGUAGE = "zh"
+
+        const val CHAT_STYLE_CURSOR = "cursor"
+        const val CHAT_STYLE_BUBBLE = "bubble"
+
+        private val KEY_BACKGROUND_BLUR_RADIUS = floatPreferencesKey("background_blur_radius")
+        private val KEY_CHAT_STYLE = stringPreferencesKey("chat_style")
+        private val KEY_SHOW_THINKING_PROCESS = booleanPreferencesKey("show_thinking_process")
+        private val KEY_SHOW_STATUS_TAGS = booleanPreferencesKey("show_status_tags")
+        private val KEY_CUSTOM_USER_AVATAR_URI = stringPreferencesKey("custom_user_avatar_uri")
+        private val KEY_CUSTOM_AI_AVATAR_URI = stringPreferencesKey("custom_ai_avatar_uri")
+        private val KEY_AVATAR_SHAPE = stringPreferencesKey("avatar_shape")
+        private val KEY_AVATAR_CORNER_RADIUS = floatPreferencesKey("avatar_corner_radius")
+
+
+        const val AVATAR_SHAPE_CIRCLE = "circle"
+        const val AVATAR_SHAPE_SQUARE = "square"
     }
 
     // 获取应用语言设置
@@ -280,6 +299,42 @@ class UserPreferencesManager(private val context: Context) {
                 preferences[BACKGROUND_BLUR_RADIUS] ?: 10f
             }
 
+    // Chat style preference
+    val chatStyle: Flow<String> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[CHAT_STYLE] ?: CHAT_STYLE_CURSOR
+            }
+
+    val showThinkingProcess: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[KEY_SHOW_THINKING_PROCESS] ?: true
+            }
+
+    val showStatusTags: Flow<Boolean> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[KEY_SHOW_STATUS_TAGS] ?: true
+            }
+
+    val customUserAvatarUri: Flow<String?> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[KEY_CUSTOM_USER_AVATAR_URI]
+            }
+
+    val customAiAvatarUri: Flow<String?> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[KEY_CUSTOM_AI_AVATAR_URI]
+            }
+
+    val avatarShape: Flow<String> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[KEY_AVATAR_SHAPE] ?: AVATAR_SHAPE_CIRCLE
+            }
+
+    val avatarCornerRadius: Flow<Float> =
+            context.userPreferencesDataStore.data.map { preferences ->
+                preferences[KEY_AVATAR_CORNER_RADIUS] ?: 8f
+            }
+
     // 保存主题设置
     suspend fun saveThemeSettings(
             themeMode: String? = null,
@@ -305,7 +360,14 @@ class UserPreferencesManager(private val context: Context) {
             chatHeaderPipIconColor: Int? = null,
             chatHeaderOverlayMode: Boolean? = null,
             useBackgroundBlur: Boolean? = null,
-            backgroundBlurRadius: Float? = null
+            backgroundBlurRadius: Float? = null,
+            chatStyle: String? = null,
+            showThinkingProcess: Boolean? = null,
+            showStatusTags: Boolean? = null,
+            customUserAvatarUri: String? = null,
+            customAiAvatarUri: String? = null,
+            avatarShape: String? = null,
+            avatarCornerRadius: Float? = null
     ) {
         context.userPreferencesDataStore.edit { preferences ->
             themeMode?.let { preferences[THEME_MODE] = it }
@@ -336,6 +398,13 @@ class UserPreferencesManager(private val context: Context) {
             chatHeaderOverlayMode?.let { preferences[CHAT_HEADER_OVERLAY_MODE] = it }
             useBackgroundBlur?.let { preferences[USE_BACKGROUND_BLUR] = it }
             backgroundBlurRadius?.let { preferences[BACKGROUND_BLUR_RADIUS] = it }
+            chatStyle?.let { preferences[CHAT_STYLE] = it }
+            showThinkingProcess?.let { preferences[KEY_SHOW_THINKING_PROCESS] = it }
+            showStatusTags?.let { preferences[KEY_SHOW_STATUS_TAGS] = it }
+            customUserAvatarUri?.let { preferences[KEY_CUSTOM_USER_AVATAR_URI] = it }
+            customAiAvatarUri?.let { preferences[KEY_CUSTOM_AI_AVATAR_URI] = it }
+            avatarShape?.let { preferences[KEY_AVATAR_SHAPE] = it }
+            avatarCornerRadius?.let { preferences[KEY_AVATAR_CORNER_RADIUS] = it }
         }
     }
 
@@ -366,6 +435,13 @@ class UserPreferencesManager(private val context: Context) {
             preferences.remove(CHAT_HEADER_OVERLAY_MODE)
             preferences.remove(USE_BACKGROUND_BLUR)
             preferences.remove(BACKGROUND_BLUR_RADIUS)
+            preferences.remove(CHAT_STYLE)
+            preferences.remove(KEY_SHOW_THINKING_PROCESS)
+            preferences.remove(KEY_SHOW_STATUS_TAGS)
+            preferences.remove(KEY_CUSTOM_USER_AVATAR_URI)
+            preferences.remove(KEY_CUSTOM_AI_AVATAR_URI)
+            preferences.remove(KEY_AVATAR_SHAPE)
+            preferences.remove(KEY_AVATAR_CORNER_RADIUS)
         }
     }
 

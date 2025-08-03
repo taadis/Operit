@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.chat.components
+package com.ai.assistance.operit.ui.features.chat.components.style.cursor
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

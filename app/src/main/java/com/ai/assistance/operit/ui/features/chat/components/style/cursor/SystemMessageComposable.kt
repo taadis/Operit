@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.chat.components
+package com.ai.assistance.operit.ui.features.chat.components.style.cursor
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape

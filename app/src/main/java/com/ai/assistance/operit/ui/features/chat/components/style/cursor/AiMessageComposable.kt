@@ -1,4 +1,4 @@
-package com.ai.assistance.operit.ui.features.chat.components
+package com.ai.assistance.operit.ui.features.chat.components.style.cursor
 
 import android.content.Intent
 import android.net.Uri
@@ -17,6 +17,9 @@ import com.ai.assistance.operit.ui.common.markdown.StreamMarkdownRenderer
 import com.ai.assistance.operit.ui.features.chat.components.part.CustomXmlRenderer
 import com.ai.assistance.operit.util.markdown.toCharStream
 import com.ai.assistance.operit.util.stream.Stream
+import com.ai.assistance.operit.data.preferences.UserPreferencesManager
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 
 /**
  * A composable function for rendering AI response messages in a Cursor IDE style. Supports text
@@ -32,9 +35,18 @@ fun AiMessageComposable(
     onLinkClick: ((String) -> Unit)? = null,
     overrideStream: Stream<String>? = null
 ) {
-    // 创建自定义XML渲染器
-    val xmlRenderer = remember { CustomXmlRenderer() }
     val context = LocalContext.current
+    val preferencesManager = remember { UserPreferencesManager(context) }
+    val showThinkingProcess by preferencesManager.showThinkingProcess.collectAsState(initial = true)
+    val showStatusTags by preferencesManager.showStatusTags.collectAsState(initial = true)
+
+    // 创建自定义XML渲染器
+    val xmlRenderer = remember(showThinkingProcess, showStatusTags) {
+        CustomXmlRenderer(
+            showThinkingProcess = showThinkingProcess,
+            showStatusTags = showStatusTags
+        )
+    }
     val rememberedOnLinkClick = remember(context, onLinkClick) {
         onLinkClick ?: { url ->
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))

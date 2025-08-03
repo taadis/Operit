@@ -23,8 +23,11 @@ import com.ai.assistance.operit.ui.common.markdown.DefaultXmlRenderer
 import com.ai.assistance.operit.ui.common.markdown.XmlContentRenderer
 
 /** 支持多种 XML 标签的自定义渲染器 包含高效的前缀检测，直接解析标签类型 */
-class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRenderer()) :
-        XmlContentRenderer {
+class CustomXmlRenderer(
+    private val showThinkingProcess: Boolean = true,
+    private val showStatusTags: Boolean = true,
+    private val fallback: XmlContentRenderer = DefaultXmlRenderer()
+) : XmlContentRenderer {
     // 定义渲染器能够处理的内置标签集合
     private val builtInTags =
             setOf("think", "tool", "status", "plan_item", "plan_update", "tool_result")
@@ -33,6 +36,22 @@ class CustomXmlRenderer(private val fallback: XmlContentRenderer = DefaultXmlRen
     override fun RenderXmlContent(xmlContent: String, modifier: Modifier, textColor: Color) {
         val trimmedContent = xmlContent.trim()
         val tagName = extractTagName(trimmedContent)
+
+        // 根据设置决定是否渲染 think 标签
+        if (tagName == "think" && !showThinkingProcess) {
+            return
+        }
+
+        // 根据设置决定是否渲染特定的 status 标签
+        if (tagName == "status") {
+            val typeRegex = "type=\"([^\"]+)\"".toRegex()
+            val typeMatch = typeRegex.find(trimmedContent)
+            val statusType = typeMatch?.groupValues?.get(1)
+            if (statusType in listOf("completion", "complete", "wait_for_user_need") && !showStatusTags) {
+                return
+            }
+        }
+
 
         // 如果无法识别为有效的XML标签，则交由默认渲染器处理
         if (tagName == null) {

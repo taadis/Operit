@@ -70,32 +70,36 @@ fun PackageManagerScreen() {
                 uri?.let {
                     scope.launch {
                         try {
-                            // Convert URI to file path - this is a simplified approach
-                            val cursor = context.contentResolver.query(uri, null, null, null, null)
-                            cursor?.use {
-                                val nameIndex = it.getColumnIndex("_display_name")
-                                if (it.moveToFirst() && nameIndex >= 0) {
-                                    val fileName = it.getString(nameIndex)
-                                    if (!fileName.endsWith(".hjson")) {
-                                        snackbarHostState.showSnackbar(message = "只支持.hjson文件")
-                                        return@launch
-                                    }
+                            var fileName: String? = null
+                            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                                val nameIndex = cursor.getColumnIndex("_display_name")
+                                if (cursor.moveToFirst() && nameIndex >= 0) {
+                                    fileName = cursor.getString(nameIndex)
                                 }
+                            }
+
+                            if (fileName == null) {
+                                snackbarHostState.showSnackbar("无法获取文件名")
+                                return@launch
+                            }
+
+                            if (!fileName!!.endsWith(".js")) {
+                                snackbarHostState.showSnackbar(message = "只支持.js文件")
+                                return@launch
                             }
 
                             // Copy the file to a temporary location
                             val inputStream = context.contentResolver.openInputStream(uri)
-                            val tempFile = File(context.cacheDir, "temp_package.hjson")
+                            val tempFile = File(context.cacheDir, fileName)
 
                             inputStream?.use { input ->
                                 tempFile.outputStream().use { output -> input.copyTo(output) }
                             }
 
                             // Import the package from the temporary file
-                            val result =
-                                    packageManager.importPackageFromExternalStorage(
-                                            tempFile.absolutePath
-                                    )
+                            packageManager.importPackageFromExternalStorage(
+                                    tempFile.absolutePath
+                            )
 
                             // Refresh the lists
                             availablePackages.value = packageManager.getAvailablePackages()
