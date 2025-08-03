@@ -363,7 +363,19 @@ fun PackageManagerScreen() {
                             selectedTool = tool
                             showScriptExecution = true
                         },
-                        onDismiss = { showDetails = false }
+                        onDismiss = { showDetails = false },
+                        onPackageDeleted = {
+                            showDetails = false
+                            scope.launch {
+                                Log.d("PackageManagerScreen", "onPackageDeleted callback triggered. Refreshing package lists.")
+                                // Refresh the package lists after deletion
+                                availablePackages.value = packageManager.getAvailablePackages()
+                                importedPackages.value = packageManager.getImportedPackages()
+                                visibleImportedPackages.value = importedPackages.value.toList()
+                                Log.d("PackageManagerScreen", "Lists refreshed. Available: ${availablePackages.value.keys}, Imported: ${importedPackages.value}")
+                                snackbarHostState.showSnackbar("Package deleted successfully.")
+                            }
+                        }
                 )
             }
 

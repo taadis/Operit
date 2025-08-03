@@ -15,6 +15,7 @@
     <string name="nav_settings">设置</string>
     <string name="nav_tool_permissions">工具权限</string>
     <string name="nav_about">关于</string>
+    <string name="update_history">更新历史</string>
     <string name="nav_packages">包管理</string>
     <string name="nav_memory_base">记忆库</string>
     <string name="nav_assistant_config">助手配置</string>

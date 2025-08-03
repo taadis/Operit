@@ -84,20 +84,12 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         val packageFiles = assetManager.list(ASSETS_PACKAGES_DIR) ?: emptyArray()
 
         for (fileName in packageFiles) {
-            if (fileName.endsWith(".hjson")) {
-                val packageMetadata = loadPackageFromHjsonAsset("$ASSETS_PACKAGES_DIR/$fileName")
-                if (packageMetadata != null) {
-                    availablePackages[packageMetadata.name] = packageMetadata
-                    Log.d(
-                            TAG,
-                            "Loaded HJSON package from assets: ${packageMetadata.name} with description: ${packageMetadata.description}, tools: ${packageMetadata.tools.size}"
-                    )
-                }
-            } else if (fileName.endsWith(".js")) {
+            if (fileName.endsWith(".js")) {
                 // Only load JavaScript files, skip TypeScript files which require compilation
                 val packageMetadata = loadPackageFromJsAsset("$ASSETS_PACKAGES_DIR/$fileName")
                 if (packageMetadata != null) {
-                    availablePackages[packageMetadata.name] = packageMetadata
+                    // Packages from assets are built-in
+                    availablePackages[packageMetadata.name] = packageMetadata.copy(isBuiltIn = true)
                     Log.d(
                             TAG,
                             "Loaded JavaScript package from assets: ${packageMetadata.name} with description: ${packageMetadata.description}, tools: ${packageMetadata.tools.size}"
@@ -107,38 +99,18 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         }
 
         // Also load packages from external storage (imported from external sources)
-        val externalFiles = externalPackagesDir.listFiles() ?: emptyArray()
+        if (externalPackagesDir.exists()) {
+            val externalFiles = externalPackagesDir.listFiles() ?: emptyArray()
 
-        for (file in externalFiles) {
-            if (file.name.endsWith(".hjson")) {
-                try {
-                    val hjsonContent = file.readText()
-                    val jsonString = JsonValue.readHjson(hjsonContent).toString()
-
-                    val jsonConfig = Json { ignoreUnknownKeys = true }
-                    val packageMetadata = jsonConfig.decodeFromString<ToolPackage>(jsonString)
-
-                    availablePackages[packageMetadata.name] = packageMetadata
-                    Log.d(
-                            TAG,
-                            "Loaded imported HJSON package from external storage: ${packageMetadata.name}"
-                    )
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error loading imported HJSON package from: ${file.path}", e)
-                }
-            } else if (file.name.endsWith(".js")) {
-                // Only load JavaScript files from external storage too
-                try {
+            for (file in externalFiles) {
+                if (file.isFile && file.name.endsWith(".js")) {
                     val packageMetadata = loadPackageFromJsFile(file)
                     if (packageMetadata != null) {
-                        availablePackages[packageMetadata.name] = packageMetadata
-                        Log.d(
-                                TAG,
-                                "Loaded imported JavaScript package from external storage: ${packageMetadata.name}"
-                        )
+                        // Packages from external storage are not built-in
+                        availablePackages[packageMetadata.name] =
+                                packageMetadata.copy(isBuiltIn = false)
+                        Log.d(TAG, "Loaded JS package from external storage: ${packageMetadata.name}")
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error loading imported JavaScript package from: ${file.path}", e)
                 }
             }
         }
@@ -313,22 +285,6 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         } catch (e: Exception) {
             Log.e(TAG, "Error importing package from external storage", e)
             return "Error importing package: ${e.message}"
-        }
-    }
-
-    /** Loads a complete ToolPackage from an HJSON file in assets */
-    private fun loadPackageFromHjsonAsset(assetPath: String): ToolPackage? {
-        try {
-            val assetManager = context.assets
-            val hjsonContent = assetManager.open(assetPath).bufferedReader().use { it.readText() }
-            val jsonString = JsonValue.readHjson(hjsonContent).toString()
-
-            // 创建配置了ignoreUnknownKeys的JSON解析器
-            val jsonConfig = Json { ignoreUnknownKeys = true }
-            return jsonConfig.decodeFromString<ToolPackage>(jsonString)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error loading package from HJSON asset: $assetPath - ${e.message}", e)
-            return null
         }
     }
 
@@ -607,6 +563,75 @@ private constructor(private val context: Context, private val aiToolHandler: AIT
         }
 
         return sb.toString()
+    }
+
+    /**
+     * Deletes a package file from external storage and removes it from the in-memory cache.
+     * This action is permanent and cannot be undone.
+     *
+     * @param packageName The name of the package to delete.
+     * @return True if the package was deleted successfully, false otherwise.
+     */
+    fun deletePackage(packageName: String): Boolean {
+        Log.d(TAG, "Attempting to delete package: $packageName")
+        // Find the package file.
+        val packageFile = findPackageFile(packageName)
+
+        if (packageFile == null || !packageFile.exists()) {
+            Log.w(TAG, "Package file not found for deletion: $packageName. It might be already deleted or never existed.")
+            // If the file doesn't exist, we can still attempt to clean up the import record.
+            removePackage(packageName)
+            // Consider it "successfully" deleted if it's already gone.
+            return true
+        }
+
+        Log.d(TAG, "Found package file to delete: ${packageFile.absolutePath}")
+
+        // Try to delete the file.
+        val fileDeleted = packageFile.delete()
+
+        if (fileDeleted) {
+            Log.d(TAG, "Successfully deleted package file: ${packageFile.absolutePath}")
+            // If file deletion is successful, remove it from the imported list and in-memory cache.
+            removePackage(packageName)
+            val removedFromCache = availablePackages.remove(packageName)
+            Log.d(TAG, "Removed '$packageName' from availablePackages cache. Was it present? ${removedFromCache != null}")
+            Log.d(TAG, "Package '$packageName' fully deleted.")
+            return true
+        } else {
+            // If file deletion fails, log the error and do not change the state.
+            Log.e(TAG, "Failed to delete package file: ${packageFile.absolutePath}")
+            return false
+        }
+    }
+
+    /**
+     * Finds the File object for a given package name in the external storage.
+     * It checks for both .js and .hjson extensions.
+     *
+     * @param packageName The name of the package to find.
+     * @return The File object if found, otherwise null.
+     */
+    private fun findPackageFile(packageName: String): File? {
+        // Use the same directory logic as when loading packages.
+        val externalPackagesDir = File(context.getExternalFilesDir(null), PACKAGES_DIR)
+        if (!externalPackagesDir.exists()) return null
+
+        // First, try direct name match
+        val jsFile = File(externalPackagesDir, "$packageName.js")
+        if (jsFile.exists()) return jsFile
+
+        // Fallback: iterate and parse files to find matching package name
+        externalPackagesDir.listFiles()?.forEach { file ->
+            if (file.name.endsWith(".js")) {
+                val loadedPackage = loadPackageFromJsFile(file)
+                if (loadedPackage?.name == packageName) {
+                    return file
+                }
+            }
+        }
+
+        return null
     }
 
     /** Clean up resources when the manager is no longer needed */

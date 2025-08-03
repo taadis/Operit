@@ -42,6 +42,7 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.ffmpegtoolbox.FFmpeg
 import com.ai.assistance.operit.ui.features.toolbox.screens.speechtotext.SpeechToTextToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.texttospeech.TextToSpeechToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.tooltester.ToolTesterScreen
+import com.ai.assistance.operit.ui.features.update.screens.UpdateScreen
 
 // 路由配置类
 typealias ScreenNavigationHandler = (Screen) -> Unit
@@ -241,7 +242,11 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            AboutScreen()
+            AboutScreen(
+                navigateToUpdateHistory = {
+                    navigateTo(UpdateHistory)
+                }
+            )
         }
     }
 
@@ -260,6 +265,22 @@ sealed class Screen(
             com.ai.assistance.operit.ui.features.agreement.screens.AgreementScreen(
                     onAgreementAccepted = onGoBack
             )
+        }
+    }
+
+    data object UpdateHistory : Screen(navItem = NavItem.UpdateHistory) {
+        @Composable
+        override fun Content(
+            navController: NavController,
+            navigateTo: ScreenNavigationHandler,
+            updateNavItem: NavItemChangeHandler,
+            onGoBack: () -> Unit,
+            hasBackgroundImage: Boolean,
+            onLoading: (Boolean) -> Unit,
+            onError: (String) -> Unit,
+            onGestureConsumed: (Boolean) -> Unit
+        ) {
+            UpdateScreen()
         }
     }
 
@@ -811,6 +832,7 @@ object OperitRouter {
             NavItem.UserPreferencesGuide -> Screen.UserPreferencesGuide()
             NavItem.AssistantConfig -> Screen.AssistantConfig
             NavItem.Agreement -> Screen.Agreement
+            NavItem.UpdateHistory -> Screen.UpdateHistory
             else -> Screen.AiChat
         }
     }

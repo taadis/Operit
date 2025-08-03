@@ -16,13 +16,16 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Assistant
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Delete
@@ -40,17 +43,20 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.collectAsState
+import coil.compose.rememberAsyncImagePainter
 import com.ai.assistance.operit.R
 import com.ai.assistance.operit.api.speech.SpeechServiceFactory
 import com.ai.assistance.operit.api.voice.VoiceServiceFactory
 import com.ai.assistance.operit.data.model.ChatMessage
 import com.ai.assistance.operit.data.preferences.PromptFunctionType
+import com.ai.assistance.operit.data.preferences.UserPreferencesManager
 import com.ai.assistance.operit.ui.common.WaveVisualizer
 import com.ai.assistance.operit.ui.floating.FloatContext
 import com.ai.assistance.operit.ui.floating.FloatingMode
@@ -61,6 +67,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.absoluteValue
+import android.net.Uri
 
 private const val TAG = "FloatingFullscreenMode"
 
@@ -91,6 +98,11 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
     val speed = 1.2f
     
     var hasFocus by remember { mutableStateOf(false) }
+
+    // Avatar preferences
+    val preferencesManager = remember { UserPreferencesManager(context) }
+    val aiAvatarUri by preferencesManager.customAiAvatarUri.collectAsState(initial = null)
+    val avatarShape = CircleShape
 
     // 创建语音识别和TTS服务
     val speechService = remember {
@@ -443,7 +455,7 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
         ) {
             // Animated positions for the wave visualizer
             val waveSize by animateDpAsState(
-                targetValue = if (isWaveActive) 200.dp else 120.dp,
+                targetValue = if (isWaveActive) 300.dp else 120.dp,
                 animationSpec = tween(500), label = "waveSize"
             )
             
@@ -452,11 +464,18 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                 animationSpec = tween(500), label = "waveOffsetY"
             )
             
-            // This Wave Visualizer stays persistent across modes for a smooth transition
+            // Animated size for the avatar
+            val avatarSize by animateDpAsState(
+                targetValue = if (isWaveActive) 120.dp else 80.dp,
+                animationSpec = tween(500), label = "avatarSize"
+            )
+            
+            // This container holds both the Wave and the Avatar, and handles smooth transition
             Box(
                 modifier = Modifier
                     .align(if (isWaveActive) Alignment.Center else Alignment.Center)
-                    .offset(y = waveOffsetY)
+                    .offset(y = waveOffsetY),
+                contentAlignment = Alignment.Center
             ) {
                 WaveVisualizer(
                     modifier = Modifier.size(waveSize),
@@ -499,6 +518,33 @@ fun FloatingFullscreenMode(floatContext: FloatContext) {
                         }
                     }
                 )
+
+                // AI Avatar, now always visible
+                Box(
+                    modifier = Modifier
+                        .size(avatarSize) // Animated size
+                        .clip(avatarShape)
+                ) {
+                    if (aiAvatarUri != null) {
+                        Image(
+                            painter = rememberAsyncImagePainter(model = Uri.parse(aiAvatarUri)),
+                            contentDescription = "AI Avatar",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        // Default Icon as a fallback
+                        Icon(
+                            imageVector = Icons.Default.Assistant,
+                            contentDescription = "AI Avatar",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.secondaryContainer)
+                                .padding(12.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
             }
             
             // AnimatedContent for messages only

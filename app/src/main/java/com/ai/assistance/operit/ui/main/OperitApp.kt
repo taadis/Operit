@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.res.stringResource
+import com.ai.assistance.operit.ui.features.update.screens.UpdateScreen
 
 // 为TopAppBar的actions提供CompositionLocal
 // 它允许子组件（如AIChatScreen）向上提供它们的action Composable
@@ -156,7 +157,7 @@ fun OperitApp(initialNavItem: NavItem = NavItem.AiChat, toolHandler: AIToolHandl
                             )
                     ),
                     NavGroup("工具", listOf(NavItem.Toolbox, NavItem.ShizukuCommands)),
-                    NavGroup("系统", listOf(NavItem.Settings, NavItem.Help, NavItem.About))
+                    NavGroup("系统", listOf(NavItem.Settings, NavItem.Help, NavItem.About, NavItem.UpdateHistory))
             )
 
     // Flattened list for components that need it

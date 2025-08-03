@@ -6,10 +6,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -23,19 +23,58 @@ fun PackageDetailsDialog(
         packageDescription: String,
         packageManager: PackageManager,
         onRunScript: (PackageTool) -> Unit,
-        onDismiss: () -> Unit
+        onDismiss: () -> Unit,
+        onPackageDeleted: () -> Unit
 ) {
+    // State for showing the delete confirmation dialog
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
     // Load the package details
     val toolPackage =
             remember(packageName) {
                 try {
-                    val packages = packageManager.getPackageTools(packageName)
-                    packages
+                    // We need the full ToolPackage object to check isBuiltIn
+                    packageManager.getAvailablePackages()[packageName]
                 } catch (e: Exception) {
                     Log.e("PackageDetailsDialog", "Failed to load package details", e)
                     null
                 }
             }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+                onDismissRequest = { showDeleteConfirmDialog = false },
+                title = { Text("Confirm Deletion") },
+                text = { Text("Are you sure you want to delete this package? This action cannot be undone.") },
+                confirmButton = {
+                    Button(
+                            onClick = {
+                                Log.d("PackageDetailsDialog", "Delete button clicked for package: $packageName")
+                                val deleted = packageManager.deletePackage(packageName)
+                                Log.d("PackageDetailsDialog", "packageManager.deletePackage returned: $deleted")
+                                if (deleted) {
+                                    Log.d("PackageDetailsDialog", "Deletion successful, closing dialog and calling onPackageDeleted.")
+                                    showDeleteConfirmDialog = false
+                                    onPackageDeleted() // Notify the parent screen
+                                } else {
+                                    Log.e("PackageDetailsDialog", "Deletion failed. Closing confirm dialog.")
+                                    // Optionally, show an error message to the user
+                                    // For now, we just close the confirm dialog
+                                    showDeleteConfirmDialog = false
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+        )
+    }
 
     AlertDialog(
             onDismissRequest = onDismiss,
@@ -127,6 +166,30 @@ fun PackageDetailsDialog(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = onDismiss) { Text(text = "OK") } }
+            confirmButton = {
+                Row(
+                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Show delete button only for non-built-in packages
+                    if (toolPackage != null && !toolPackage.isBuiltIn) {
+                        TextButton(
+                                onClick = { showDeleteConfirmDialog = true },
+                        ) {
+                            Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Delete Package",
+                                    tint = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text("Delete", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    Spacer(modifier = Modifier.weight(1f)) // Pushes buttons to edges
+                    TextButton(onClick = onDismiss) {
+                        Text(text = "Close")
+                    }
+                }
+            }
     )
 }

@@ -20,7 +20,8 @@ data class ToolPackage(
     val name: String,
     val description: String,
     val tools: List<PackageTool>,
-    val category: ToolCategory = ToolCategory.FILE_READ // Default to a safer category
+    val category: ToolCategory = ToolCategory.FILE_READ, // Default to a safer category
+    val isBuiltIn: Boolean = false
 )
 
 /**

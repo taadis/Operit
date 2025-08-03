@@ -332,8 +332,6 @@ fun AIChatScreen(
 
     // 当手势状态改变时，通知父组件
     LaunchedEffect(chatScreenGestureConsumed, showWebView) {
-        // 当WebView显示时，不再无条件地消费所有手势，以允许内部组件（如CodeEditor）滚动。
-        // 侧边栏的划出问题需要由父布局更精细地处理，而不是在这里一刀切地拦截。
         val finalGestureState = chatScreenGestureConsumed
         // 同时更新全局状态持有者，确保PhoneLayout能够访问到状态
         GestureStateHolder.isChatScreenGestureConsumed = finalGestureState
@@ -360,6 +358,8 @@ fun AIChatScreen(
     // 从CompositionLocal获取设置TopBar Actions的函数
     val setTopBarActions = LocalTopBarActions.current
     val appBarContentColor = LocalAppBarContentColor.current
+
+    
 
     // 当showWebView状态改变时，更新TopAppBar的actions
     // 使用DisposableEffect确保当AIChatScreen离开组合时，actions被清空
